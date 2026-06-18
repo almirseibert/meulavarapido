@@ -1,0 +1,24 @@
+<svg width="512" height="512" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <!-- Logomarca "Meu LavaRápido": gota d'água + carro estilizado + brilho -->
+  <defs>
+    <linearGradient id="drop" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#22d3ee"/>
+      <stop offset="1" stop-color="#0891b2"/>
+    </linearGradient>
+  </defs>
+  <path d="M50 6 C50 6 80 40 80 62 a30 30 0 1 1 -60 0 C20 40 50 6 50 6 Z" fill="url(#drop)"/>
+  <ellipse cx="39" cy="40" rx="6" ry="11" fill="#ffffff" opacity="0.18"/>
+  <circle cx="34" cy="30" r="2.4" fill="#ffffff" opacity="0.5"/>
+  <g>
+    <path d="M24 64 q0 -4 4 -4 h44 q4 0 4 4 v4 q0 4 -4 4 h-44 q-4 0 -4 -4 z" fill="#ffffff"/>
+    <path d="M39 60 C 39 52.5 44 49.5 50 49.5 C 56 49.5 61 52.5 61 60 Z" fill="#ffffff"/>
+    <path d="M43 59 C 43 54.8 46 53 50 53 C 54 53 57 54.8 57 59 Z" fill="#a5f3fc"/>
+    <circle cx="72" cy="65" r="1.7" fill="#fde68a"/>
+    <circle cx="37" cy="72" r="5" fill="#0B4F6C"/>
+    <circle cx="37" cy="72" r="2" fill="#ffffff"/>
+    <circle cx="63" cy="72" r="5" fill="#0B4F6C"/>
+    <circle cx="63" cy="72" r="2" fill="#ffffff"/>
+  </g>
+  <circle cx="26" cy="44" r="3.4" fill="#ffffff" opacity="0.9"/>
+  <circle cx="74" cy="48" r="2.6" fill="#ffffff" opacity="0.9"/>
+</svg>
