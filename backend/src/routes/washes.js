@@ -21,8 +21,13 @@ router.get(
       params.push(req.query.to);
       where += ` AND date <= $${params.length}`;
     }
+    // Tele-busca: somente itens com busca ativa (status diferente de concluído).
+    if (req.query.pickup) {
+      where += ` AND pickup = true AND COALESCE(pickup_status, '') <> 'concluido'`;
+    }
+    const order = req.query.pickup ? 'date ASC' : 'date DESC';
     const { rows } = await query(
-      `SELECT * FROM washes WHERE ${where} ORDER BY date DESC LIMIT 500`,
+      `SELECT * FROM washes WHERE ${where} ORDER BY ${order} LIMIT 500`,
       params
     );
     return ok(res, rows);
@@ -51,8 +56,10 @@ router.post(
     const { rows } = await query(
       `INSERT INTO washes
          (owner_id, client_id, vehicle_id, client_name, vehicle_info, date,
-          price, payment_type, is_charged, services, observations)
-       VALUES ($1,$2,$3,$4,$5,COALESCE($6, now()),$7,$8,COALESCE($9,true),$10,$11)
+          price, payment_type, is_charged, services, observations,
+          pickup, pickup_address, pickup_fee, pickup_status)
+       VALUES ($1,$2,$3,$4,$5,COALESCE($6, now()),$7,$8,COALESCE($9,true),$10,$11,
+               COALESCE($12,false),$13,COALESCE($14,0),$15)
        RETURNING *`,
       [
         req.owner.id,
@@ -66,6 +73,10 @@ router.post(
         b.is_charged,
         JSON.stringify(services),
         b.observations || null,
+        b.pickup,
+        b.pickup_address || null,
+        b.pickup_fee != null ? Number(b.pickup_fee) || 0 : null,
+        b.pickup ? (b.pickup_status || 'a_buscar') : null,
       ]
     );
     return ok(res, rows[0], 'Lavagem registrada.', 201);
@@ -89,12 +100,17 @@ router.put(
          payment_type = COALESCE($7, payment_type),
          is_charged = COALESCE($8, is_charged),
          services = COALESCE($9::jsonb, services),
-         observations = COALESCE($10, observations)
+         observations = COALESCE($10, observations),
+         pickup = COALESCE($13, pickup),
+         pickup_address = COALESCE($14, pickup_address),
+         pickup_fee = COALESCE($15, pickup_fee),
+         pickup_status = COALESCE($16, pickup_status)
        WHERE id = $11 AND owner_id = $12 RETURNING *`,
       [
         b.client_id ?? null, b.vehicle_id ?? null, b.client_name ?? null, b.vehicle_info ?? null,
         b.date ?? null, b.price ?? null, b.payment_type ?? null, b.is_charged ?? null,
         services, b.observations ?? null, req.params.id, req.owner.id,
+        b.pickup ?? null, b.pickup_address ?? null, b.pickup_fee ?? null, b.pickup_status ?? null,
       ]
     );
     if (!rows.length) return fail(res, 'Lavagem não encontrada.', 404);
@@ -110,6 +126,23 @@ router.patch(
       `UPDATE washes SET is_charged = NOT is_charged
        WHERE id = $1 AND owner_id = $2 RETURNING *`,
       [req.params.id, req.owner.id]
+    );
+    if (!rows.length) return fail(res, 'Lavagem não encontrada.', 404);
+    return ok(res, rows[0]);
+  })
+);
+
+// PATCH /api/washes/:id/pickup-status — define o status da tele-busca
+router.patch(
+  '/:id/pickup-status',
+  wrap(async (req, res) => {
+    const valid = ['a_buscar', 'em_servico', 'a_entregar', 'concluido'];
+    const status = valid.includes(req.body.status) ? req.body.status : null;
+    if (!status) return fail(res, 'Status inválido.');
+    const { rows } = await query(
+      `UPDATE washes SET pickup_status = $1
+       WHERE id = $2 AND owner_id = $3 RETURNING *`,
+      [status, req.params.id, req.owner.id]
     );
     if (!rows.length) return fail(res, 'Lavagem não encontrada.', 404);
     return ok(res, rows[0]);

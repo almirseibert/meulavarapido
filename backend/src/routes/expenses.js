@@ -30,10 +30,10 @@ router.post(
     if (!b.type) return fail(res, 'Informe o tipo da despesa.');
     const { rows } = await query(
       `INSERT INTO expenses
-         (owner_id, type, date, description, value, is_paid, supplier_id, supplier_name)
-       VALUES ($1,$2,COALESCE($3, now()),$4,$5,COALESCE($6,false),$7,$8) RETURNING *`,
+         (owner_id, type, date, description, value, is_paid, supplier_id, supplier_name, helper_id, helper_name)
+       VALUES ($1,$2,COALESCE($3, now()),$4,$5,COALESCE($6,false),$7,$8,$9,$10) RETURNING *`,
       [req.owner.id, b.type, b.date || null, b.description || null, Number(b.value) || 0,
-       b.is_paid, b.supplier_id || null, b.supplier_name || null]
+       b.is_paid, b.supplier_id || null, b.supplier_name || null, b.helper_id || null, b.helper_name || null]
     );
     return ok(res, rows[0], 'Despesa registrada.', 201);
   })
@@ -52,10 +52,13 @@ router.put(
          value = COALESCE($4, value),
          is_paid = COALESCE($5, is_paid),
          supplier_id = COALESCE($6, supplier_id),
-         supplier_name = COALESCE($7, supplier_name)
-       WHERE id = $8 AND owner_id = $9 RETURNING *`,
+         supplier_name = COALESCE($7, supplier_name),
+         helper_id = COALESCE($8, helper_id),
+         helper_name = COALESCE($9, helper_name)
+       WHERE id = $10 AND owner_id = $11 RETURNING *`,
       [b.type ?? null, b.date ?? null, b.description ?? null, b.value ?? null, b.is_paid ?? null,
-       b.supplier_id ?? null, b.supplier_name ?? null, req.params.id, req.owner.id]
+       b.supplier_id ?? null, b.supplier_name ?? null, b.helper_id ?? null, b.helper_name ?? null,
+       req.params.id, req.owner.id]
     );
     if (!rows.length) return fail(res, 'Despesa não encontrada.', 404);
     return ok(res, rows[0], 'Despesa atualizada.');

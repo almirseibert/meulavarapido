@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { View, Text, ScrollView, RefreshControl, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, router } from 'expo-router';
-import { Crown, TrendingUp, Droplets, Wallet, CalendarClock } from 'lucide-react-native';
+import { Crown, TrendingUp, Droplets, Wallet, CalendarClock, BarChart3, PhoneCall, HardHat, Truck } from 'lucide-react-native';
 import { LogoMark } from '@/components/Logo';
 import { Card } from '@/components/ui';
 import { api, unwrap } from '@/lib/api';
@@ -80,6 +80,23 @@ export default function DashboardScreen() {
         <View className="flex-row gap-3 mb-5">
           <Kpi icon={<Wallet color="#ea580c" size={20} />} label="Despesas pagas (mês)" value={formatCurrency(data?.expensesMonth ?? 0)} />
           <Kpi icon={<TrendingUp color="#16a34a" size={20} />} label="Receita hoje" value={formatCurrency(data?.revenueToday ?? 0)} />
+        </View>
+
+        <Text className="text-muted font-semibold mb-2">Atalhos</Text>
+        <View className="flex-row flex-wrap gap-3 mb-5">
+          {[
+            { icon: <BarChart3 color="#0891b2" size={22} />, label: 'Relatórios', href: '/(app)/reports' },
+            { icon: <PhoneCall color="#0891b2" size={22} />, label: 'Recuperação', href: '/(app)/callback' },
+            { icon: <HardHat color="#0891b2" size={22} />, label: 'Colaboradores', href: '/(app)/helpers' },
+            { icon: <Truck color="#0891b2" size={22} />, label: 'Tele-busca', href: '/(app)/pickup' },
+          ].map((a) => (
+            <Pressable key={a.label} onPress={() => router.push(a.href as any)} style={{ width: '47%' }}>
+              <Card className="items-center py-4">
+                {a.icon}
+                <Text className="text-ink font-semibold text-sm mt-2">{a.label}</Text>
+              </Card>
+            </Pressable>
+          ))}
         </View>
 
         <View className="flex-row items-center mb-2">

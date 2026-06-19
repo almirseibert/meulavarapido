@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { View, Text, FlatList, Pressable, Modal, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
-import { Plus, X, Trash2, CalendarClock } from 'lucide-react-native';
+import { Plus, X, Trash2, CalendarClock, Truck, Check } from 'lucide-react-native';
 import { Button, Input, Card, Empty } from '@/components/ui';
 import { api, unwrap, ApiError } from '@/lib/api';
 import { formatDateTime, parseDateTime, toDateInput } from '@/lib/utils';
@@ -80,12 +80,16 @@ function ScheduleModal({ visible, onClose, onSaved }: { visible: boolean; onClos
   const [dateStr, setDateStr] = useState('');
   const [timeStr, setTimeStr] = useState('08:00');
   const [obs, setObs] = useState('');
+  const [pickup, setPickup] = useState(false);
+  const [pickupAddress, setPickupAddress] = useState('');
+  const [pickupFee, setPickupFee] = useState('');
   const [saving, setSaving] = useState(false);
 
   React.useEffect(() => {
     if (visible) {
       setClientName(''); setVehicleInfo(''); setObs(''); setTimeStr('08:00');
       setDateStr(toDateInput(new Date()));
+      setPickup(false); setPickupAddress(''); setPickupFee('');
     }
   }, [visible]);
 
@@ -105,6 +109,10 @@ function ScheduleModal({ visible, onClose, onSaved }: { visible: boolean; onClos
         vehicle_info: vehicleInfo || null,
         date: dt.toISOString(),
         observations: obs || null,
+        pickup,
+        pickup_address: pickup ? pickupAddress || null : null,
+        pickup_fee: pickup ? Number(pickupFee.replace(',', '.')) || 0 : 0,
+        pickup_status: pickup ? 'a_buscar' : null,
       });
       onSaved();
     } catch (e) {
@@ -138,6 +146,26 @@ function ScheduleModal({ visible, onClose, onSaved }: { visible: boolean; onClos
           </View>
 
           <Input label="Observações" value={obs} onChangeText={setObs} placeholder="Opcional" multiline />
+
+          <Pressable
+            onPress={() => setPickup((v) => !v)}
+            className={`flex-row items-center justify-between rounded-2xl p-4 border mb-3 mt-1 ${pickup ? 'bg-brand-50 border-brand-600' : 'bg-white border-line'}`}
+          >
+            <View className="flex-row items-center">
+              <Truck color={pickup ? '#0891b2' : '#94a3b8'} size={20} />
+              <Text className={`ml-2 font-semibold ${pickup ? 'text-brand-700' : 'text-ink'}`}>Tele-busca (busca e entrega)</Text>
+            </View>
+            <View className={`w-5 h-5 rounded-md border ${pickup ? 'bg-brand-600 border-brand-600' : 'border-line'} items-center justify-center`}>
+              {pickup ? <Check color="#fff" size={14} /> : null}
+            </View>
+          </Pressable>
+          {pickup && (
+            <>
+              <Input label="Endereço para busca" value={pickupAddress} onChangeText={setPickupAddress} placeholder="Rua, número, bairro" />
+              <Input label="Taxa de tele-busca (R$)" value={pickupFee} onChangeText={setPickupFee} keyboardType="decimal-pad" placeholder="0,00" />
+            </>
+          )}
+
           <Button title="Agendar" onPress={save} loading={saving} className="mt-2" />
         </ScrollView>
       </SafeAreaView>

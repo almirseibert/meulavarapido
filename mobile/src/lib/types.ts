@@ -61,6 +61,30 @@ export interface Wash {
   is_charged: boolean;
   services: { id?: string; name: string; price: number }[];
   observations?: string;
+  pickup?: boolean;
+  pickup_address?: string;
+  pickup_fee?: number;
+  pickup_status?: PickupStatus | null;
+}
+
+export type PickupStatus = 'a_buscar' | 'em_servico' | 'a_entregar' | 'concluido';
+
+export const PICKUP_STATUS: { id: PickupStatus; label: string; next?: PickupStatus }[] = [
+  { id: 'a_buscar', label: 'A buscar', next: 'em_servico' },
+  { id: 'em_servico', label: 'Em serviço', next: 'a_entregar' },
+  { id: 'a_entregar', label: 'A entregar', next: 'concluido' },
+  { id: 'concluido', label: 'Concluído' },
+];
+
+export interface Helper {
+  id: string;
+  name: string;
+  daily_rate: number;
+  active: boolean;
+  saldo?: number;
+  total_diarias?: number;
+  total_vales?: number;
+  total_pagamentos?: number;
 }
 
 export interface Supplier {
@@ -107,3 +131,10 @@ export const PAYMENT_TYPES = [
 ];
 
 export const EXPENSE_TYPES = ['Produto', 'Energia', 'Água', 'Aluguel', 'Outro'];
+
+// Lançamentos financeiros de colaborador (mesma tabela de despesas).
+export const HELPER_EXPENSE_TYPES: { id: string; label: string }[] = [
+  { id: 'AjudaDiaria', label: 'Diária de trabalho' },
+  { id: 'AjudaVale', label: 'Vale (adiantamento)' },
+  { id: 'AjudaPagamento', label: 'Pagamento (acerto)' },
+];

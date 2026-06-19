@@ -6,6 +6,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import {
   Building2, Wrench, Crown, Upload, MessageSquareHeart, LogOut, X, Trash2, ChevronRight, Truck,
+  BarChart3, PhoneCall, HardHat, PackageOpen,
 } from 'lucide-react-native';
 import { Button, Input, Card } from '@/components/ui';
 import { LogoMark } from '@/components/Logo';
@@ -54,6 +55,12 @@ export default function SettingsScreen() {
         <Row icon={<Wrench color="#0891b2" size={20} />} title="Serviços e valores" subtitle="Edite preços e serviços oferecidos" onPress={() => setServicesOpen(true)} />
         <Row icon={<Truck color="#0891b2" size={20} />} title="Fornecedores" subtitle="Cadastro e pedidos de produtos" onPress={() => router.push('/(app)/suppliers')} />
 
+        <Text className="text-muted font-semibold text-xs uppercase mb-2 mt-4">Gestão</Text>
+        <Row icon={<BarChart3 color="#0891b2" size={20} />} title="Relatórios" subtitle="Lavagens por período, cliente, veículo e em aberto" onPress={() => router.push('/(app)/reports')} />
+        <Row icon={<PhoneCall color="#0891b2" size={20} />} title="Recuperação de clientes" subtitle="Acione no WhatsApp quem está sem lavar há dias" onPress={() => router.push('/(app)/callback')} />
+        <Row icon={<HardHat color="#0891b2" size={20} />} title="Colaboradores" subtitle="Diárias, vales, pagamentos e saldo" onPress={() => router.push('/(app)/helpers')} />
+        <Row icon={<PackageOpen color="#0891b2" size={20} />} title="Tele-busca" subtitle="Veículos com busca e entrega em andamento" onPress={() => router.push('/(app)/pickup')} />
+
         <Text className="text-muted font-semibold text-xs uppercase mb-2 mt-4">Conta</Text>
         {!owner?.isPremium && (
           <Row icon={<Crown color="#b45309" size={20} />} title="Assinar Premium" subtitle="Tudo liberado, sem anúncios — R$ 19,90/mês" onPress={() => router.push('/premium')} />
@@ -86,7 +93,7 @@ async function importBackup() {
     const counts = await unwrap<any>(api.post('/import', { data: json }));
     Alert.alert(
       'Importação concluída',
-      `Clientes: ${counts.clients} · Veículos: ${counts.vehicles} · Lavagens: ${counts.washes} · Agend.: ${counts.schedules} · Despesas: ${counts.expenses}`
+      `Clientes: ${counts.clients} · Veículos: ${counts.vehicles} · Lavagens: ${counts.washes} · Agend.: ${counts.schedules} · Despesas: ${counts.expenses} · Colaboradores: ${counts.helpers ?? 0}`
     );
   } catch (e) {
     Alert.alert('Erro ao importar', e instanceof ApiError ? e.message : 'Verifique se o arquivo é um backup JSON válido.');

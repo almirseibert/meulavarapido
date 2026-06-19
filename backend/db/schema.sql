@@ -137,6 +137,49 @@ CREATE TABLE IF NOT EXISTS expenses (
 );
 CREATE INDEX IF NOT EXISTS idx_expenses_owner_date ON expenses(owner_id, date);
 
+-- ---------- Colaboradores (ex-"ajudantes") ----------
+CREATE TABLE IF NOT EXISTS helpers (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  owner_id    UUID NOT NULL REFERENCES owners(id) ON DELETE CASCADE,
+  name        TEXT NOT NULL,
+  daily_rate  NUMERIC(10,2) NOT NULL DEFAULT 0,   -- diária padrão
+  active      BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_helpers_owner ON helpers(owner_id);
+
+-- Vínculo das despesas de colaborador (Diária/Vale/Pagamento) ao colaborador.
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS helper_id   UUID REFERENCES helpers(id) ON DELETE SET NULL;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS helper_name TEXT;
+
+-- ---------- CRM / Recuperação de clientes (módulo "Call") ----------
+CREATE TABLE IF NOT EXISTS crm_settings (
+  owner_id        UUID PRIMARY KEY REFERENCES owners(id) ON DELETE CASCADE,
+  inactivity_days INTEGER NOT NULL DEFAULT 30,    -- dias sem lavar p/ considerar inativo
+  snooze_days     INTEGER NOT NULL DEFAULT 15,    -- dias p/ avisar novamente após contato
+  message_body    TEXT,
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS crm_callbacks (
+  owner_id          UUID NOT NULL REFERENCES owners(id) ON DELETE CASCADE,
+  client_id         UUID NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  last_contact_date TIMESTAMPTZ,
+  next_contact_date TIMESTAMPTZ,
+  is_ignored        BOOLEAN NOT NULL DEFAULT FALSE,
+  PRIMARY KEY (owner_id, client_id)
+);
+
+-- ---------- Tele-busca (busca e entrega do veículo) ----------
+ALTER TABLE washes    ADD COLUMN IF NOT EXISTS pickup         BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE washes    ADD COLUMN IF NOT EXISTS pickup_address TEXT;
+ALTER TABLE washes    ADD COLUMN IF NOT EXISTS pickup_fee     NUMERIC(10,2) NOT NULL DEFAULT 0;
+ALTER TABLE washes    ADD COLUMN IF NOT EXISTS pickup_status  TEXT;  -- a_buscar|em_servico|a_entregar|concluido
+ALTER TABLE schedules ADD COLUMN IF NOT EXISTS pickup         BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE schedules ADD COLUMN IF NOT EXISTS pickup_address TEXT;
+ALTER TABLE schedules ADD COLUMN IF NOT EXISTS pickup_fee     NUMERIC(10,2) NOT NULL DEFAULT 0;
+ALTER TABLE schedules ADD COLUMN IF NOT EXISTS pickup_status  TEXT;
+
 -- ---------- Documentos emitidos (recibos e orçamentos) ----------
 -- Usado para contabilizar limites do plano free (5 recibos + 5 orçamentos).
 CREATE TABLE IF NOT EXISTS documents (

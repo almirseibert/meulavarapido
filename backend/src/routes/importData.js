@@ -22,11 +22,23 @@ router.post(
     if (!data || typeof data !== 'object') return fail(res, 'Backup inválido.');
 
     const ownerId = req.owner.id;
-    const counts = { clients: 0, vehicles: 0, washes: 0, schedules: 0, expenses: 0, services: 0 };
+    const counts = { clients: 0, vehicles: 0, washes: 0, schedules: 0, expenses: 0, services: 0, helpers: 0 };
 
     await withTransaction(async (c) => {
       const clientIdMap = {}; // oldId -> newId
       const vehicleIdMap = {};
+      const helperIdMap = {};
+
+      // Colaboradores (ex-"ajudantes")
+      for (const h of toArr(data.helpers)) {
+        const { rows } = await c.query(
+          `INSERT INTO helpers (owner_id, name, daily_rate, active)
+           VALUES ($1,$2,$3,$4) RETURNING id`,
+          [ownerId, h.name || 'Colaborador', num(h.dailyRate), h.active === undefined ? true : !!h.active]
+        );
+        helperIdMap[h.id] = rows[0].id;
+        counts.helpers++;
+      }
 
       // Serviços (do app antigo: serviceList fixo) — opcional
       for (const s of toArr(data.services)) {
@@ -92,14 +104,13 @@ router.post(
         counts.schedules++;
       }
 
-      // Despesas (ignora movimentos internos de ajudante do app antigo)
+      // Despesas (inclui os lançamentos de colaborador: Diária/Vale/Pagamento)
       for (const e of toArr(data.expenses)) {
-        if (['AjudaDiaria', 'AjudaVale', 'AjudaPagamento'].includes(e.type)) continue;
         await c.query(
-          `INSERT INTO expenses (owner_id, type, date, description, value, is_paid, created_at)
-           VALUES ($1,$2, to_timestamp($3),$4,$5,$6, to_timestamp($7))`,
+          `INSERT INTO expenses (owner_id, type, date, description, value, is_paid, helper_id, helper_name, created_at)
+           VALUES ($1,$2, to_timestamp($3),$4,$5,$6,$7,$8, to_timestamp($9))`,
           [ownerId, e.type || 'Outro', sec(e.date), e.description || null, num(e.value),
-           !!e.isPaid, sec(e.createdAt)]
+           !!e.isPaid, helperIdMap[e.helperId] || null, e.helperName || null, sec(e.createdAt)]
         );
         counts.expenses++;
       }

@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { View, Text, FlatList, Pressable, Modal, ScrollView, Alert, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, router } from 'expo-router';
-import { Plus, X, Check, Trash2, FileDown } from 'lucide-react-native';
+import { Plus, X, Check, Trash2, FileDown, Truck } from 'lucide-react-native';
 import { Button, Input, Card, Pill, Empty } from '@/components/ui';
 import { api, unwrap, ApiError } from '@/lib/api';
 import { useApp } from '@/lib/stores/app';
@@ -135,13 +135,19 @@ function WashFormModal({
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [manualPrice, setManualPrice] = useState('');
   const [payment, setPayment] = useState('Dinheiro');
+  const [pickup, setPickup] = useState(false);
+  const [pickupAddress, setPickupAddress] = useState('');
+  const [pickupFee, setPickupFee] = useState('');
   const [saving, setSaving] = useState(false);
 
   const chosen = services.filter((s) => selected[s.id]);
-  const total = manualPrice ? Number(manualPrice.replace(',', '.')) || 0 : chosen.reduce((a, s) => a + Number(s.price), 0);
+  const fee = pickup ? Number(pickupFee.replace(',', '.')) || 0 : 0;
+  const base = manualPrice ? Number(manualPrice.replace(',', '.')) || 0 : chosen.reduce((a, s) => a + Number(s.price), 0);
+  const total = base + fee;
 
   function reset() {
     setClientName(''); setVehicleInfo(''); setSelected({}); setManualPrice(''); setPayment('Dinheiro');
+    setPickup(false); setPickupAddress(''); setPickupFee('');
   }
 
   async function save() {
@@ -156,6 +162,10 @@ function WashFormModal({
         payment_type: payment,
         is_charged: payment !== 'Faturamento Posterior',
         services: chosen.map((s) => ({ id: s.id, name: s.name, price: Number(s.price) })),
+        pickup,
+        pickup_address: pickup ? pickupAddress || null : null,
+        pickup_fee: fee,
+        pickup_status: pickup ? 'a_buscar' : null,
         ad_watched: gate.adWatched,
       });
       reset();
@@ -217,6 +227,25 @@ function WashFormModal({
               </Pressable>
             ))}
           </View>
+
+          <Pressable
+            onPress={() => setPickup((v) => !v)}
+            className={`flex-row items-center justify-between rounded-2xl p-4 border mb-3 ${pickup ? 'bg-brand-50 border-brand-600' : 'bg-white border-line'}`}
+          >
+            <View className="flex-row items-center">
+              <Truck color={pickup ? '#0891b2' : '#94a3b8'} size={20} />
+              <Text className={`ml-2 font-semibold ${pickup ? 'text-brand-700' : 'text-ink'}`}>Tele-busca (busca e entrega)</Text>
+            </View>
+            <View className={`w-5 h-5 rounded-md border ${pickup ? 'bg-brand-600 border-brand-600' : 'border-line'} items-center justify-center`}>
+              {pickup ? <Check color="#fff" size={14} /> : null}
+            </View>
+          </Pressable>
+          {pickup && (
+            <>
+              <Input label="Endereço para busca" value={pickupAddress} onChangeText={setPickupAddress} placeholder="Rua, número, bairro" />
+              <Input label="Taxa de tele-busca (R$)" value={pickupFee} onChangeText={setPickupFee} keyboardType="decimal-pad" placeholder="0,00" />
+            </>
+          )}
 
           <View className="bg-white rounded-2xl p-4 border border-line mb-4 flex-row justify-between items-center">
             <Text className="text-muted">Total</Text>
