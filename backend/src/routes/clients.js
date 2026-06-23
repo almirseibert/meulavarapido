@@ -39,9 +39,10 @@ router.post(
     const name = (req.body.name || '').trim();
     if (!name) return fail(res, 'Informe o nome do cliente.');
     const { rows } = await query(
-      `INSERT INTO clients (owner_id, name, phone, is_company, document)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [req.owner.id, name, req.body.phone || null, !!req.body.is_company, req.body.document || null]
+      `INSERT INTO clients (owner_id, name, phone, is_company, document, allow_credit, address, notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [req.owner.id, name, req.body.phone || null, !!req.body.is_company, req.body.document || null,
+       !!req.body.allow_credit, req.body.address || null, req.body.notes || null]
     );
     return ok(res, { ...rows[0], vehicles: [] }, 'Cliente criado.', 201);
   })
@@ -56,7 +57,10 @@ router.put(
          name = COALESCE($1, name),
          phone = COALESCE($2, phone),
          is_company = COALESCE($3, is_company),
-         document = COALESCE($4, document)
+         document = COALESCE($4, document),
+         allow_credit = COALESCE($7, allow_credit),
+         address = COALESCE($8, address),
+         notes = COALESCE($9, notes)
        WHERE id = $5 AND owner_id = $6 RETURNING *`,
       [
         req.body.name ?? null,
@@ -65,6 +69,9 @@ router.put(
         req.body.document ?? null,
         req.params.id,
         req.owner.id,
+        req.body.allow_credit ?? null,
+        req.body.address ?? null,
+        req.body.notes ?? null,
       ]
     );
     if (!rows.length) return fail(res, 'Cliente não encontrado.', 404);

@@ -46,6 +46,9 @@ export interface Client {
   phone?: string;
   is_company: boolean;
   document?: string;
+  allow_credit?: boolean;
+  address?: string;
+  notes?: string;
   vehicles: Vehicle[];
 }
 
@@ -65,6 +68,9 @@ export interface Wash {
   pickup_address?: string;
   pickup_fee?: number;
   pickup_status?: PickupStatus | null;
+  pickup_time?: string | null;
+  client_allow_credit?: boolean;
+  client_phone?: string | null;
 }
 
 export type PickupStatus = 'a_buscar' | 'em_servico' | 'a_entregar' | 'concluido';

@@ -58,6 +58,10 @@ CREATE TABLE IF NOT EXISTS clients (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_clients_owner ON clients(owner_id);
+-- Cliente autorizado a pagar a prazo (faturamento posterior) + endereço p/ tele-busca.
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS allow_credit BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS address TEXT;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS notes   TEXT;
 
 -- ---------- Veículos ----------
 CREATE TABLE IF NOT EXISTS vehicles (
@@ -175,6 +179,7 @@ ALTER TABLE washes    ADD COLUMN IF NOT EXISTS pickup         BOOLEAN NOT NULL D
 ALTER TABLE washes    ADD COLUMN IF NOT EXISTS pickup_address TEXT;
 ALTER TABLE washes    ADD COLUMN IF NOT EXISTS pickup_fee     NUMERIC(10,2) NOT NULL DEFAULT 0;
 ALTER TABLE washes    ADD COLUMN IF NOT EXISTS pickup_status  TEXT;  -- a_buscar|em_servico|a_entregar|concluido
+ALTER TABLE washes    ADD COLUMN IF NOT EXISTS pickup_time    TIMESTAMPTZ;  -- horário marcado para buscar o veículo
 ALTER TABLE schedules ADD COLUMN IF NOT EXISTS pickup         BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE schedules ADD COLUMN IF NOT EXISTS pickup_address TEXT;
 ALTER TABLE schedules ADD COLUMN IF NOT EXISTS pickup_fee     NUMERIC(10,2) NOT NULL DEFAULT 0;

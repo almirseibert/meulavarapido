@@ -7,30 +7,63 @@ const { washesToday, FREE_LIMITS } = require('../utils/plan');
 const router = express.Router();
 router.use(requireAuth);
 
-// GET /api/washes?from=&to=
+// GET /api/washes
+// Filtros: from, to, client_id, vehicle_id, payment_type, status (open|paid),
+//          credit_only (clientes a prazo), pickup (tele-busca ativa).
 router.get(
   '/',
   wrap(async (req, res) => {
+    const q = req.query;
     const params = [req.owner.id];
-    let where = 'owner_id = $1';
-    if (req.query.from) {
-      params.push(req.query.from);
-      where += ` AND date >= $${params.length}`;
-    }
-    if (req.query.to) {
-      params.push(req.query.to);
-      where += ` AND date <= $${params.length}`;
-    }
+    let where = 'w.owner_id = $1';
+    const add = (val, clause) => { params.push(val); return clause.replace('$$', `$${params.length}`); };
+
+    if (q.from)         where += add(q.from, ' AND w.date >= $$');
+    if (q.to)           where += add(q.to, ' AND w.date <= $$');
+    if (q.client_id)    where += add(q.client_id, ' AND w.client_id = $$');
+    if (q.vehicle_id)   where += add(q.vehicle_id, ' AND w.vehicle_id = $$');
+    if (q.payment_type) where += add(q.payment_type, ' AND w.payment_type = $$');
+    if (q.status === 'open') where += ' AND w.is_charged = false';
+    if (q.status === 'paid') where += ' AND w.is_charged = true';
+    // Apenas lavagens de clientes configurados para pagar a prazo.
+    if (q.credit_only)  where += ' AND c.allow_credit = true';
     // Tele-busca: somente itens com busca ativa (status diferente de concluído).
-    if (req.query.pickup) {
-      where += ` AND pickup = true AND COALESCE(pickup_status, '') <> 'concluido'`;
-    }
-    const order = req.query.pickup ? 'date ASC' : 'date DESC';
+    if (q.pickup) where += ` AND w.pickup = true AND COALESCE(w.pickup_status, '') <> 'concluido'`;
+
+    const order = q.pickup ? 'w.date ASC' : 'w.date DESC';
     const { rows } = await query(
-      `SELECT * FROM washes WHERE ${where} ORDER BY ${order} LIMIT 500`,
+      `SELECT w.*, c.allow_credit AS client_allow_credit, c.phone AS client_phone
+         FROM washes w
+         LEFT JOIN clients c ON c.id = w.client_id
+        WHERE ${where} ORDER BY ${order} LIMIT 1000`,
       params
     );
     return ok(res, rows);
+  })
+);
+
+// POST /api/washes/settle — baixa em lote (marca lavagens em aberto como pagas).
+// Body: { ids?: [], from?, to?, client_id?, payment_type? }. Sem ids, usa filtros.
+router.post(
+  '/settle',
+  wrap(async (req, res) => {
+    const b = req.body || {};
+    const params = [req.owner.id];
+    let where = 'owner_id = $1 AND is_charged = false';
+    if (Array.isArray(b.ids) && b.ids.length) {
+      params.push(b.ids);
+      where += ` AND id = ANY($${params.length}::uuid[])`;
+    } else {
+      if (b.from)         { params.push(b.from); where += ` AND date >= $${params.length}`; }
+      if (b.to)           { params.push(b.to); where += ` AND date <= $${params.length}`; }
+      if (b.client_id)    { params.push(b.client_id); where += ` AND client_id = $${params.length}`; }
+      if (b.payment_type) { params.push(b.payment_type); where += ` AND payment_type = $${params.length}`; }
+    }
+    const { rowCount } = await query(
+      `UPDATE washes SET is_charged = true WHERE ${where}`,
+      params
+    );
+    return ok(res, { settled: rowCount }, `${rowCount} lavagem(ns) marcada(s) como paga(s).`);
   })
 );
 
@@ -57,9 +90,9 @@ router.post(
       `INSERT INTO washes
          (owner_id, client_id, vehicle_id, client_name, vehicle_info, date,
           price, payment_type, is_charged, services, observations,
-          pickup, pickup_address, pickup_fee, pickup_status)
+          pickup, pickup_address, pickup_fee, pickup_status, pickup_time)
        VALUES ($1,$2,$3,$4,$5,COALESCE($6, now()),$7,$8,COALESCE($9,true),$10,$11,
-               COALESCE($12,false),$13,COALESCE($14,0),$15)
+               COALESCE($12,false),$13,COALESCE($14,0),$15,$16)
        RETURNING *`,
       [
         req.owner.id,
@@ -77,6 +110,7 @@ router.post(
         b.pickup_address || null,
         b.pickup_fee != null ? Number(b.pickup_fee) || 0 : null,
         b.pickup ? (b.pickup_status || 'a_buscar') : null,
+        b.pickup ? (b.pickup_time || null) : null,
       ]
     );
     return ok(res, rows[0], 'Lavagem registrada.', 201);
@@ -104,13 +138,15 @@ router.put(
          pickup = COALESCE($13, pickup),
          pickup_address = COALESCE($14, pickup_address),
          pickup_fee = COALESCE($15, pickup_fee),
-         pickup_status = COALESCE($16, pickup_status)
+         pickup_status = COALESCE($16, pickup_status),
+         pickup_time = COALESCE($17, pickup_time)
        WHERE id = $11 AND owner_id = $12 RETURNING *`,
       [
         b.client_id ?? null, b.vehicle_id ?? null, b.client_name ?? null, b.vehicle_info ?? null,
         b.date ?? null, b.price ?? null, b.payment_type ?? null, b.is_charged ?? null,
         services, b.observations ?? null, req.params.id, req.owner.id,
         b.pickup ?? null, b.pickup_address ?? null, b.pickup_fee ?? null, b.pickup_status ?? null,
+        b.pickup_time ?? null,
       ]
     );
     if (!rows.length) return fail(res, 'Lavagem não encontrada.', 404);

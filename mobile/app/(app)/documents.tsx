@@ -9,6 +9,7 @@ import { useApp } from '@/lib/stores/app';
 import { gateAction } from '@/lib/services/gate';
 import { generateAndShare } from '@/lib/services/receipt';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { ClientVehiclePicker, EMPTY_SELECTION, type PickerSelection } from '@/components/ClientPicker';
 import { PAYMENT_TYPES, type AppDocument, type Service } from '@/lib/types';
 
 export default function DocumentsScreen() {
@@ -107,15 +108,14 @@ function DocFormModal({
   visible, kind, services, onClose, onSaved,
 }: { visible: boolean; kind: 'receipt' | 'quote'; services: Service[]; onClose: () => void; onSaved: () => void }) {
   const { usage, company } = useApp();
-  const [clientName, setClientName] = useState('');
-  const [vehicleInfo, setVehicleInfo] = useState('');
+  const [sel, setSel] = useState<PickerSelection>(EMPTY_SELECTION);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [payment, setPayment] = useState('Dinheiro');
   const [obs, setObs] = useState('');
   const [saving, setSaving] = useState(false);
 
   React.useEffect(() => {
-    if (visible) { setClientName(''); setVehicleInfo(''); setSelected({}); setPayment('Dinheiro'); setObs(''); }
+    if (visible) { setSel(EMPTY_SELECTION); setSelected({}); setPayment('Dinheiro'); setObs(''); }
   }, [visible]);
 
   const chosen = services.filter((s) => selected[s.id]);
@@ -133,12 +133,12 @@ function DocFormModal({
       const items = chosen.map((s) => ({ name: s.name, price: Number(s.price) }));
       const doc = await unwrap<any>(
         api.post('/documents', {
-          kind, client_name: clientName, vehicle_info: vehicleInfo, items, total,
+          kind, client_name: sel.client_name, vehicle_info: sel.vehicle_info, items, total,
           payment_type: payment, observations: obs, ad_watched: gate.adWatched,
         })
       );
       await generateAndShare(company, {
-        kind, number: doc.number, clientName, vehicleInfo, items, total, paymentType: payment, observations: obs,
+        kind, number: doc.number, clientName: sel.client_name, vehicleInfo: sel.vehicle_info, items, total, paymentType: payment, observations: obs,
       });
       onSaved();
     } catch (e) {
@@ -156,8 +156,7 @@ function DocFormModal({
           <Pressable onPress={onClose}><X color="#0f172a" size={24} /></Pressable>
         </View>
         <ScrollView contentContainerStyle={{ padding: 16 }}>
-          <Input label="Cliente" value={clientName} onChangeText={setClientName} placeholder="Nome do cliente" />
-          <Input label="Veículo / placa" value={vehicleInfo} onChangeText={setVehicleInfo} placeholder="Ex.: Gol prata ABC1D23" />
+          <ClientVehiclePicker value={sel} onChange={setSel} />
 
           <Text className="text-muted font-medium mb-2 text-sm">Serviços</Text>
           <View className="flex-row flex-wrap gap-2 mb-3">

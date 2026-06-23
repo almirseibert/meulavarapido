@@ -18,6 +18,7 @@
     "expo-file-system": "~56.0.8",
     "expo-font": "^56.0.5",
     "expo-linking": "~56.0.13",
+    "expo-notifications": "~56.0.18",
     "expo-print": "~56.0.4",
     "expo-router": "^56.2.8",
     "expo-sharing": "~56.0.18",
@@ -42,6 +43,7 @@
     "@babel/core": "^7.25.2",
     "@types/react": "~19.2.2",
     "babel-preset-expo": "^56.0.14",
+    "react-refresh": "^0.14.2",
     "typescript": "~6.0.3"
   },
   "private": true
