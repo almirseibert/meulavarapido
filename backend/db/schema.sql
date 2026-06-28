@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS company_settings (
 );
 -- CNPJ/CPF único entre contas (compara apenas dígitos, ignorando formatação).
 CREATE UNIQUE INDEX IF NOT EXISTS uq_company_document
-  ON company_settings (regexp_replace(document, '\D', '', 'g'))
+  ON company_settings (regexp_replace(document, E'\\D', '', 'g'))
   WHERE document IS NOT NULL AND document <> '';
 
 -- ---------- Serviços e valores (editáveis) ----------

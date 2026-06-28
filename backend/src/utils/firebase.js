@@ -45,8 +45,13 @@ async function verifyPhoneToken(idToken) {
     err.code = 'firebase-unavailable';
     throw err;
   }
-  const decoded = await a.auth().verifyIdToken(idToken);
-  return { phone: decoded.phone_number || null, uid: decoded.uid };
+  try {
+    const decoded = await a.auth().verifyIdToken(idToken);
+    return { phone: decoded.phone_number || null, uid: decoded.uid };
+  } catch (e) {
+    console.error('[firebase] verifyIdToken falhou:', e.code || e.message, e.errorInfo || '');
+    throw e;
+  }
 }
 
 module.exports = { verifyPhoneToken, isConfigured };
