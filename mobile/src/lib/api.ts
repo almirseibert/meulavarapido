@@ -1,5 +1,6 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { router } from 'expo-router';
 
 const baseURL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
 
@@ -46,6 +47,10 @@ api.interceptors.response.use(
     const message =
       body?.message ||
       (status === 0 ? 'Sem conexão com o servidor.' : 'Erro ao comunicar com o servidor.');
+    // Trial expirado / recurso premium: leva o usuário direto para a assinatura.
+    if (status === 402 && body?.data?.requiresSubscription) {
+      try { router.push('/premium'); } catch { /* navegação indisponível */ }
+    }
     return Promise.reject(new ApiError(message, status, body?.data));
   }
 );

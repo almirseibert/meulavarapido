@@ -13,7 +13,6 @@ import {
   PlusJakartaSans_700Bold,
 } from '@expo-google-fonts/plus-jakarta-sans';
 import { useAuth } from '@/lib/stores/auth';
-import { initAds } from '@/lib/services/ads';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -37,7 +36,6 @@ export default function RootLayout() {
 
   useEffect(() => {
     restore();
-    initAds();
   }, []);
 
   useEffect(() => {

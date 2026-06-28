@@ -9,17 +9,16 @@
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.makservicos.meulavarapido"
+      "bundleIdentifier": "com.studiomythos.meulavarapido",
+      "googleServicesFile": "./GoogleService-Info.plist"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0B4F6C"
       },
-      "package": "com.makservicos.meulavarapido",
-      "permissions": [
-        "com.google.android.gms.permission.AD_ID"
-      ]
+      "package": "com.studiomythos.meulavarapido",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "bundler": "metro",
@@ -37,11 +36,14 @@
           "backgroundColor": "#0B4F6C"
         }
       ],
+      "@react-native-firebase/app",
+      "@react-native-firebase/auth",
       [
-        "react-native-google-mobile-ads",
+        "expo-build-properties",
         {
-          "androidAppId": "ca-app-pub-3940256099942544~3347511713",
-          "iosAppId": "ca-app-pub-3940256099942544~1458002511"
+          "ios": {
+            "useFrameworks": "static"
+          }
         }
       ]
     ],

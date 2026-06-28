@@ -96,6 +96,7 @@ function PickerModal({
 }) {
   const [clients, setClients] = useState<Client[]>([]);
   const [search, setSearch] = useState('');
+  const [vSearch, setVSearch] = useState('');
   const [selected, setSelected] = useState<Client | null>(null);
   const [manual, setManual] = useState(false);
   const [mName, setMName] = useState('');
@@ -110,14 +111,16 @@ function PickerModal({
 
   React.useEffect(() => {
     if (visible) {
-      setSearch(''); setSelected(null); setMName(''); setMVehicle('');
+      setSearch(''); setVSearch(''); setSelected(null); setMName(''); setMVehicle('');
       setManual(manualStart);
       load('');
     }
   }, [visible, manualStart, load]);
 
   function pickClientNoVehicle(c: Client) {
-    if (requireVehicle && (c.vehicles?.length || 0) > 0) { setSelected(c); return; }
+    // Se o cliente tem veículos, abre a escolha do veículo (mesmo quando não é
+    // obrigatório) — assim dá para selecionar qual veículo entre vários.
+    if ((c.vehicles?.length || 0) > 0) { setSelected(c); setVSearch(''); return; }
     onPick({
       client_id: c.id, vehicle_id: null, client_name: c.name, vehicle_info: '',
       phone: c.phone || null, address: c.address || null, allow_credit: !!c.allow_credit,
@@ -161,25 +164,49 @@ function PickerModal({
             </Pressable>
           </View>
         ) : selected ? (
-          <View className="flex-1 p-4">
-            <Text className="text-ink font-semibold text-base mb-1">{selected.name}</Text>
-            <Text className="text-muted text-sm mb-3">Selecione o veículo:</Text>
-            {(selected.vehicles || []).map((v) => (
-              <Pressable key={v.id} onPress={() => pickVehicle(selected, v)} className="flex-row items-center border border-line rounded-2xl px-4 py-3 bg-white mb-2">
+          <FlatList
+            data={(selected.vehicles || []).filter((v) => {
+              const q = vSearch.trim().toLowerCase();
+              return !q || vehicleLabel(v).toLowerCase().includes(q);
+            })}
+            keyExtractor={(v) => v.id}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ padding: 16, paddingTop: 4 }}
+            ListHeaderComponent={
+              <View className="mb-1">
+                <Text className="text-ink font-semibold text-base mb-1">{selected.name}</Text>
+                <Text className="text-muted text-sm mb-3">Selecione o veículo:</Text>
+                {(selected.vehicles || []).length > 0 && (
+                  <Input placeholder="Buscar veículo (modelo ou placa)" value={vSearch} onChangeText={setVSearch} className="mb-2" />
+                )}
+              </View>
+            }
+            ListEmptyComponent={
+              <Empty
+                title="Nenhum veículo"
+                subtitle={vSearch ? 'Nenhum veículo corresponde à busca.' : 'Este cliente não tem veículos cadastrados.'}
+              />
+            }
+            renderItem={({ item: v }) => (
+              <Pressable onPress={() => pickVehicle(selected, v)} className="flex-row items-center border border-line rounded-2xl px-4 py-3 bg-white mb-2">
                 <Car color="#0891b2" size={18} />
                 <Text className="text-ink ml-2 flex-1">{vehicleLabel(v)}</Text>
                 <Check color="#94a3b8" size={18} />
               </Pressable>
-            ))}
-            {!requireVehicle && (
-              <Pressable onPress={() => pickClientNoVehicle({ ...selected, vehicles: [] })} className="items-center mt-2">
-                <Text className="text-muted">Sem veículo específico</Text>
-              </Pressable>
             )}
-            <Pressable onPress={() => setSelected(null)} className="items-center mt-3">
-              <Text className="text-brand-700 font-medium">Voltar para a lista</Text>
-            </Pressable>
-          </View>
+            ListFooterComponent={
+              <View>
+                {!requireVehicle && (
+                  <Pressable onPress={() => pickClientNoVehicle({ ...selected, vehicles: [] })} className="items-center mt-2">
+                    <Text className="text-muted">Sem veículo específico</Text>
+                  </Pressable>
+                )}
+                <Pressable onPress={() => { setSelected(null); setVSearch(''); }} className="items-center mt-3">
+                  <Text className="text-brand-700 font-medium">Voltar para a lista</Text>
+                </Pressable>
+              </View>
+            }
+          />
         ) : (
           <>
             <View className="px-4 pt-3">
@@ -208,8 +235,19 @@ function PickerModal({
                   </View>
                   {item.phone ? <Text className="text-muted text-sm mt-0.5 ml-6">{item.phone}</Text> : null}
                   {(item.vehicles || []).map((v) => (
-                    <Text key={v.id} className="text-brand-700 text-sm ml-6 mt-0.5">{vehicleLabel(v)}</Text>
+                    <Pressable
+                      key={v.id}
+                      onPress={() => pickVehicle(item, v)}
+                      className="flex-row items-center ml-6 mt-1 py-1"
+                    >
+                      <Car color="#0891b2" size={14} />
+                      <Text className="text-brand-700 text-sm ml-1.5 flex-1">{vehicleLabel(v)}</Text>
+                      <Check color="#cbd5e1" size={16} />
+                    </Pressable>
                   ))}
+                  {(item.vehicles?.length || 0) > 0 ? (
+                    <Text className="text-muted text-xs ml-6 mt-1">Toque no veículo para selecioná-lo</Text>
+                  ) : null}
                 </Pressable>
               )}
             />

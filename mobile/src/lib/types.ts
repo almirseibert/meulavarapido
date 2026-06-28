@@ -2,9 +2,14 @@ export interface Owner {
   id: string;
   name: string;
   email: string;
+  phone?: string | null;
   plan: 'free' | 'premium';
   premium_until: string | null;
+  trial_ends_at?: string | null;
   isPremium: boolean;
+  trialActive: boolean;
+  trialDaysLeft: number;
+  hasAccess: boolean;
 }
 
 export interface Company {
@@ -118,14 +123,6 @@ export interface AppDocument {
   observations?: string;
   via_ad?: boolean;
   created_at: string;
-}
-
-export interface Usage {
-  isPremium: boolean;
-  limits: { washesPerDay: number; receipts: number; quotes: number };
-  washes: { today: number; remaining: number | null; requiresAd: boolean };
-  receipts: { total: number; remaining: number | null; requiresAd: boolean };
-  quotes: { total: number; remaining: number | null; requiresAd: boolean };
 }
 
 export const PAYMENT_TYPES = [

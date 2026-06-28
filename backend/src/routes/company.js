@@ -1,10 +1,12 @@
 const express = require('express');
 const { query } = require('../db');
-const { ok, wrap } = require('../utils/http');
-const { requireAuth } = require('../middleware/auth');
+const { ok, fail, wrap } = require('../utils/http');
+const { requireAuth, requireActiveAccess } = require('../middleware/auth');
+
+const onlyDigits = (s) => String(s || '').replace(/\D/g, '');
 
 const router = express.Router();
-router.use(requireAuth);
+router.use(requireAuth, requireActiveAccess);
 
 const FIELDS = [
   'name', 'document', 'address', 'city', 'state', 'zip',
@@ -28,6 +30,22 @@ router.get(
 router.put(
   '/',
   wrap(async (req, res) => {
+    // CNPJ/CPF é único entre contas (anti-abuso). Valida aqui para devolver
+    // uma mensagem amigável; o índice uq_company_document é a rede de segurança.
+    if (req.body.document !== undefined) {
+      const digits = onlyDigits(req.body.document);
+      if (digits) {
+        const dup = await query(
+          `SELECT 1 FROM company_settings
+            WHERE owner_id <> $1
+              AND regexp_replace(COALESCE(document, ''), '\\D', '', 'g') = $2
+            LIMIT 1`,
+          [req.owner.id, digits]
+        );
+        if (dup.rows.length) return fail(res, 'Este CNPJ/CPF já está em uso em outra conta.', 409);
+      }
+    }
+
     const updates = [];
     const values = [];
     let i = 1;

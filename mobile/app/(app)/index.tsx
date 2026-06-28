@@ -5,6 +5,7 @@ import { useFocusEffect, router } from 'expo-router';
 import { Crown, TrendingUp, Droplets, Wallet, CalendarClock, BarChart3, PhoneCall, HardHat, Truck } from 'lucide-react-native';
 import { LogoMark } from '@/components/Logo';
 import { Card } from '@/components/ui';
+import { AccessBanner } from '@/components/AccessBanner';
 import { api, unwrap } from '@/lib/api';
 import { useAuth } from '@/lib/stores/auth';
 import { formatCurrency, formatDateTime, monthLabel, currentMonth } from '@/lib/utils';
@@ -68,6 +69,8 @@ export default function DashboardScreen() {
             </Pressable>
           )}
         </View>
+
+        <AccessBanner />
 
         <View className="flex-row gap-3 mb-3">
           <Kpi icon={<Droplets color="#0891b2" size={20} />} label="Lavagens no mês" value={String(data?.washesMonth ?? 0)} />

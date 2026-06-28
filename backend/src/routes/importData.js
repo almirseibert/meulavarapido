@@ -1,10 +1,11 @@
 const express = require('express');
 const { withTransaction } = require('../db');
 const { ok, fail, wrap } = require('../utils/http');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requirePremium } = require('../middleware/auth');
 
 const router = express.Router();
-router.use(requireAuth);
+// Importar backup é recurso exclusivo de assinantes Premium (nem o trial libera).
+router.use(requireAuth, requirePremium);
 
 /**
  * POST /api/import

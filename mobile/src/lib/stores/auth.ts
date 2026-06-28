@@ -8,7 +8,12 @@ interface AuthState {
   ready: boolean;       // já tentou restaurar a sessão
   restore: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
+  register: (
+    name: string,
+    email: string,
+    password: string,
+    verify?: { firebaseIdToken?: string; phone?: string }
+  ) => Promise<void>;
   refresh: () => Promise<void>;
   logout: () => Promise<void>;
   setOwner: (o: Owner) => void;
@@ -44,11 +49,15 @@ export const useAuth = create<AuthState>((set, get) => ({
     }
   },
 
-  register: async (name, email, password) => {
+  register: async (name, email, password, verify) => {
     set({ loading: true });
     try {
       const data = await unwrap<{ token: string; owner: Owner }>(
-        api.post('/auth/register', { name, email, password })
+        api.post('/auth/register', {
+          name, email, password,
+          firebaseIdToken: verify?.firebaseIdToken,
+          phone: verify?.phone,
+        })
       );
       await saveToken(data.token);
       set({ owner: data.owner });

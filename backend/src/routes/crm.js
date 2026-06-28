@@ -1,10 +1,10 @@
 const express = require('express');
 const { query } = require('../db');
 const { ok, fail, wrap } = require('../utils/http');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireActiveAccess } = require('../middleware/auth');
 
 const router = express.Router();
-router.use(requireAuth);
+router.use(requireAuth, requireActiveAccess);
 
 const DEFAULT_MESSAGE =
   'Notamos que faz um tempinho que seu veículo não nos visita. Que tal agendar uma lavagem e deixá-lo brilhando novamente?';

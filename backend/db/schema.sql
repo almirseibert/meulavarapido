@@ -17,6 +17,17 @@ CREATE TABLE IF NOT EXISTS owners (
   created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- ---------- Trial de 14 dias + anti-abuso por telefone ----------
+-- Modelo: acesso = isPremium OU (now() < trial_ends_at). Sem anúncios.
+ALTER TABLE owners ADD COLUMN IF NOT EXISTS trial_ends_at  TIMESTAMPTZ;
+ALTER TABLE owners ADD COLUMN IF NOT EXISTS phone          TEXT;            -- E.164, verificado no cadastro
+ALTER TABLE owners ADD COLUMN IF NOT EXISTS phone_verified BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE owners ADD COLUMN IF NOT EXISTS firebase_uid   TEXT;           -- uid do Firebase Phone Auth
+-- Backfill: contas já existentes ganham 14 dias a partir da criação.
+UPDATE owners SET trial_ends_at = created_at + interval '14 days' WHERE trial_ends_at IS NULL;
+-- Telefone único entre contas (impede recriar conta para renovar o trial).
+CREATE UNIQUE INDEX IF NOT EXISTS uq_owners_phone ON owners(phone) WHERE phone IS NOT NULL;
+
 -- ---------- Dados da lavagem (cadastro completo, usado em recibos/conexão) ----------
 CREATE TABLE IF NOT EXISTS company_settings (
   owner_id    UUID PRIMARY KEY REFERENCES owners(id) ON DELETE CASCADE,
@@ -34,6 +45,10 @@ CREATE TABLE IF NOT EXISTS company_settings (
   receipt_footer TEXT,         -- mensagem fixa no rodapé de recibos/orçamentos
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- CNPJ/CPF único entre contas (compara apenas dígitos, ignorando formatação).
+CREATE UNIQUE INDEX IF NOT EXISTS uq_company_document
+  ON company_settings (regexp_replace(document, '\D', '', 'g'))
+  WHERE document IS NOT NULL AND document <> '';
 
 -- ---------- Serviços e valores (editáveis) ----------
 CREATE TABLE IF NOT EXISTS services (

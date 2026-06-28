@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "275591864344",
+    "project_id": "meu-lava-rapido-e872b",
+    "storage_bucket": "meu-lava-rapido-e872b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:275591864344:android:b77fc20233ee9315b0636d",
+        "android_client_info": {
+          "package_name": "com.studiomythos.meulavarapido"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "275591864344-bl49kpq80pm5bt93h9bt2vtjg4f4otf1.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBdusavCZ6W-6X3phsQtYdIv3FdV4nVmIE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "275591864344-bl49kpq80pm5bt93h9bt2vtjg4f4otf1.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

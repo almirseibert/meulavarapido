@@ -6,7 +6,7 @@ import { api, unwrap } from '../api';
 const IS_EXPO_GO = Constants.executionEnvironment === 'storeClient';
 
 /**
- * Assinatura premium (R$ 19,90/mês ou R$ 119,90/ano).
+ * Assinatura premium (R$ 49,90/mês ou R$ 499,90/ano).
  * Usa RevenueCat (`react-native-purchases`) que abstrai a App Store e a Play Store.
  *
  * IMPORTANTE: lojas exigem que assinaturas digitais sejam vendidas via in-app
@@ -17,8 +17,8 @@ const IS_EXPO_GO = Constants.executionEnvironment === 'storeClient';
  *
  * Configuração em produção:
  *  1. Crie produtos na App Store Connect e Play Console:
- *       meulavarapido_premium_monthly (R$ 19,90)
- *       meulavarapido_premium_yearly  (R$ 119,90)
+ *       meulavarapido_premium_monthly (R$ 49,90)
+ *       meulavarapido_premium_yearly  (R$ 499,90)
  *  2. No RevenueCat: entitlement "premium" + offering com esses produtos.
  *  3. Preencha EXPO_PUBLIC_RC_ANDROID_KEY / EXPO_PUBLIC_RC_IOS_KEY no .env.
  *  4. Configure o webhook do RevenueCat -> POST {API}/api/subscription/webhook

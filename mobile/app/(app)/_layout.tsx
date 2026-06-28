@@ -10,11 +10,13 @@ import { configurePurchases } from '@/lib/services/subscription';
 
 export default function AppLayout() {
   const owner = useAuth((s) => s.owner);
+  const refresh = useAuth((s) => s.refresh);
   const refreshAll = useApp((s) => s.refreshAll);
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
     if (owner) {
+      refresh().catch(() => {});   // atualiza estado de trial/assinatura
       refreshAll().catch(() => {});
       configurePurchases(owner.id);
     }

@@ -222,7 +222,7 @@ function PickupFormModal({
         await api.put(`/washes/${wash.id}`, body);
       } else {
         // Tele-busca nasce como uma lavagem em andamento (valor definido na conclusão).
-        await api.post('/washes', { ...body, price: Number(fee.replace(',', '.')) || 0, payment_type: 'Dinheiro', is_charged: false, services: [], ad_watched: false });
+        await api.post('/washes', { ...body, price: Number(fee.replace(',', '.')) || 0, payment_type: 'Dinheiro', is_charged: false, services: [] });
       }
       onSaved();
     } catch (e) {

@@ -6,7 +6,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import {
   Building2, Wrench, Crown, Upload, MessageSquareHeart, LogOut, X, Trash2, ChevronRight, Truck,
-  BarChart3, PhoneCall, HardHat, PackageOpen,
+  BarChart3, PhoneCall, HardHat, PackageOpen, Lock,
 } from 'lucide-react-native';
 import { Button, Input, Card } from '@/components/ui';
 import { LogoMark } from '@/components/Logo';
@@ -43,11 +43,18 @@ export default function SettingsScreen() {
           <LogoMark size={56} />
           <Text className="text-ink font-bold text-lg mt-2">{owner?.name}</Text>
           <Text className="text-muted text-sm">{owner?.email}</Text>
-          <View className={`mt-2 px-3 py-1 rounded-full ${owner?.isPremium ? 'bg-amber-100' : 'bg-slate-100'}`}>
-            <Text className={`text-xs font-semibold ${owner?.isPremium ? 'text-amber-700' : 'text-slate-600'}`}>
-              {owner?.isPremium ? 'Plano Premium' : 'Plano Gratuito'}
-            </Text>
-          </View>
+          {(() => {
+            const tone = owner?.isPremium
+              ? { bg: 'bg-amber-100', fg: 'text-amber-700', label: 'Plano Premium' }
+              : owner?.trialActive
+              ? { bg: 'bg-blue-100', fg: 'text-blue-700', label: `Teste grátis: ${owner?.trialDaysLeft ?? 0} ${owner?.trialDaysLeft === 1 ? 'dia' : 'dias'}` }
+              : { bg: 'bg-red-100', fg: 'text-red-700', label: 'Somente leitura — assine' };
+            return (
+              <View className={`mt-2 px-3 py-1 rounded-full ${tone.bg}`}>
+                <Text className={`text-xs font-semibold ${tone.fg}`}>{tone.label}</Text>
+              </View>
+            );
+          })()}
         </View>
 
         <Text className="text-muted font-semibold text-xs uppercase mb-2">Lavagem</Text>
@@ -63,9 +70,13 @@ export default function SettingsScreen() {
 
         <Text className="text-muted font-semibold text-xs uppercase mb-2 mt-4">Conta</Text>
         {!owner?.isPremium && (
-          <Row icon={<Crown color="#b45309" size={20} />} title="Assinar Premium" subtitle="Tudo liberado, sem anúncios — R$ 19,90/mês" onPress={() => router.push('/premium')} />
+          <Row icon={<Crown color="#b45309" size={20} />} title="Assinar Premium" subtitle="Acesso total após o teste — a partir de R$ 49,90/mês" onPress={() => router.push('/premium')} />
         )}
-        <Row icon={<Upload color="#0891b2" size={20} />} title="Importar backup (JSON)" subtitle="Migre os dados do app antigo para a nuvem" onPress={importBackup} />
+        {owner?.isPremium ? (
+          <Row icon={<Upload color="#0891b2" size={20} />} title="Importar backup (JSON)" subtitle="Migre os dados do app antigo para a nuvem" onPress={importBackup} />
+        ) : (
+          <Row icon={<Lock color="#94a3b8" size={20} />} title="Importar backup (JSON)" subtitle="Disponível no Premium" onPress={() => router.push('/premium')} />
+        )}
         <Row icon={<MessageSquareHeart color="#0891b2" size={20} />} title="Contate o desenvolvedor" subtitle="Elogios, sugestões e melhorias" onPress={() => setContactOpen(true)} />
 
         <Pressable onPress={() => { logout(); router.replace('/(auth)/login'); }} className="flex-row items-center justify-center mt-6 py-4">

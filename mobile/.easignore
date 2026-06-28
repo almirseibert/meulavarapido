@@ -1,0 +1,9 @@
+# Faz o EAS NÃO subir as pastas nativas geradas localmente (com caminhos absolutos
+# da máquina). Assim o EAS roda `expo prebuild` limpo no servidor.
+node_modules/
+.expo/
+dist/
+*.log
+.DS_Store
+android/
+ios/

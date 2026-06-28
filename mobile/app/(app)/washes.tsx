@@ -1,12 +1,11 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, FlatList, Pressable, Modal, ScrollView, Alert, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect, router } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { Plus, X, Check, Trash2, FileDown, Truck, Pencil, SlidersHorizontal, ChevronDown, ChevronRight, CheckCheck } from 'lucide-react-native';
 import { Button, Input, Card, Pill, Empty } from '@/components/ui';
 import { api, unwrap, ApiError } from '@/lib/api';
 import { useApp } from '@/lib/stores/app';
-import { gateAction } from '@/lib/services/gate';
 import { generateAndShare } from '@/lib/services/receipt';
 import { formatCurrency, formatDate, formatTime, parseDateTime, toDateInput } from '@/lib/utils';
 import { ClientVehiclePicker, EMPTY_SELECTION, type PickerSelection } from '@/components/ClientPicker';
@@ -42,7 +41,7 @@ function dayKey(iso: string): string {
 }
 
 export default function WashesScreen() {
-  const { services, usage, company, loadUsage } = useApp();
+  const { services, company } = useApp();
   const [items, setItems] = useState<Wash[]>([]);
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [filterOpen, setFilterOpen] = useState(false);
@@ -69,7 +68,7 @@ export default function WashesScreen() {
     } catch {}
   }, [buildParams]);
 
-  useFocusEffect(useCallback(() => { load(filters); loadUsage(); }, [load, filters]));
+  useFocusEffect(useCallback(() => { load(filters); }, [load, filters]));
 
   // Agrupa por dia: cada linha-resumo expande para as lavagens do dia.
   const groups = useMemo(() => {
@@ -92,22 +91,19 @@ export default function WashesScreen() {
     if (!company?.name) {
       return Alert.alert('Cadastro incompleto', 'Preencha os dados da lavagem em Ajustes antes de emitir recibos.');
     }
-    const gate = await gateAction('receipt', usage);
-    if (!gate.allow) return;
     try {
       const its = (w.services || []).map((s) => ({ name: s.name, price: Number(s.price) || 0 }));
       if (!its.length) its.push({ name: 'Serviço de lavagem', price: w.price });
       const doc = await unwrap<any>(
         api.post('/documents', {
           kind: 'receipt', client_name: w.client_name, vehicle_info: w.vehicle_info,
-          items: its, total: w.price, payment_type: w.payment_type, ad_watched: gate.adWatched,
+          items: its, total: w.price, payment_type: w.payment_type,
         })
       );
       await generateAndShare(company, {
         kind: 'receipt', number: doc.number, clientName: w.client_name, vehicleInfo: w.vehicle_info,
         items: its, total: w.price, paymentType: w.payment_type, date: w.date,
       });
-      loadUsage();
     } catch (e) {
       Alert.alert('Erro', e instanceof ApiError ? e.message : 'Não foi possível emitir o recibo.');
     }
@@ -158,15 +154,6 @@ export default function WashesScreen() {
         </View>
       </View>
 
-      {usage && !usage.isPremium && (
-        <Pressable onPress={() => router.push('/premium')} className="mx-4 mb-2 bg-brand-50 rounded-xl px-3 py-2">
-          <Text className="text-brand-800 text-xs">
-            Plano grátis: {usage.washes.today}/{usage.limits.washesPerDay} lavagens hoje.{' '}
-            {usage.washes.requiresAd ? 'Próxima exige vídeo.' : `${usage.washes.remaining} restantes sem anúncio.`}
-          </Text>
-        </Pressable>
-      )}
-
       {filtersActive && (
         <View className="flex-row items-center justify-between px-4 mb-2">
           <Text className="text-muted text-xs flex-1" numberOfLines={1}>
@@ -216,6 +203,7 @@ export default function WashesScreen() {
                             <Text className="text-muted text-xs mt-0.5">{item.services.map((s) => s.name).join(', ')}</Text>
                           ) : null}
                           <Text className="text-muted text-xs mt-0.5">{formatTime(item.date)} · {item.payment_type || '—'}</Text>
+                          {item.observations ? <Text className="text-muted text-xs italic mt-0.5">Obs: {item.observations}</Text> : null}
                         </View>
                         <View className="items-end">
                           <Text className="text-ink font-bold">{formatCurrency(item.price)}</Text>
@@ -248,7 +236,7 @@ export default function WashesScreen() {
         wash={editing}
         services={services}
         onClose={() => setFormOpen(false)}
-        onSaved={() => { setFormOpen(false); load(filters); loadUsage(); }}
+        onSaved={() => { setFormOpen(false); load(filters); }}
       />
       <FilterModal
         visible={filterOpen}
@@ -264,7 +252,6 @@ export default function WashesScreen() {
 function WashFormModal({
   visible, wash, services, onClose, onSaved,
 }: { visible: boolean; wash: Wash | null; services: Service[]; onClose: () => void; onSaved: () => void }) {
-  const usage = useApp((s) => s.usage);
   const [sel, setSel] = useState<PickerSelection>(EMPTY_SELECTION);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [manualPrice, setManualPrice] = useState('');
@@ -274,6 +261,7 @@ function WashFormModal({
   const [pickup, setPickup] = useState(false);
   const [pickupAddress, setPickupAddress] = useState('');
   const [pickupFee, setPickupFee] = useState('');
+  const [obs, setObs] = useState('');
   const [saving, setSaving] = useState(false);
 
   React.useEffect(() => {
@@ -295,9 +283,11 @@ function WashFormModal({
       setPickup(!!wash.pickup);
       setPickupAddress(wash.pickup_address || '');
       setPickupFee(wash.pickup_fee ? String(wash.pickup_fee) : '');
+      setObs(wash.observations || '');
     } else {
       setSel(EMPTY_SELECTION); setSelected({}); setManualPrice(''); setPayment('Dinheiro');
       setDateStr(''); setTimeStr(''); setPickup(false); setPickupAddress(''); setPickupFee('');
+      setObs('');
     }
   }, [visible, wash]);
 
@@ -307,12 +297,6 @@ function WashFormModal({
   const total = base + fee;
 
   async function save() {
-    let adWatched = false;
-    if (!wash) {
-      const gate = await gateAction('wash', usage);
-      if (!gate.allow) return;
-      adWatched = gate.adWatched;
-    }
     setSaving(true);
     try {
       const date = dateStr ? parseDateTime(dateStr, timeStr || '00:00')?.toISOString() : null;
@@ -322,6 +306,7 @@ function WashFormModal({
         price: total, payment_type: payment,
         is_charged: payment !== 'Faturamento Posterior',
         services: chosen.map((s) => ({ id: s.id, name: s.name, price: Number(s.price) })),
+        observations: obs.trim() || null,
         pickup, pickup_address: pickup ? pickupAddress || sel.address || null : null,
         pickup_fee: fee, pickup_status: pickup ? (wash?.pickup_status || 'a_buscar') : null,
       };
@@ -329,7 +314,7 @@ function WashFormModal({
       if (wash) {
         await api.put(`/washes/${wash.id}`, body);
       } else {
-        await api.post('/washes', { ...body, ad_watched: adWatched });
+        await api.post('/washes', body);
       }
       onSaved();
     } catch (e) {
@@ -402,6 +387,8 @@ function WashFormModal({
               <Text className="text-muted text-xs mb-2">Para agendar a busca com horário e aviso, use a aba Tele-busca / Agenda.</Text>
             </>
           )}
+
+          <Input label="Observações" value={obs} onChangeText={setObs} placeholder="Opcional (ex.: detalhes do serviço, avarias)" multiline style={{ height: 90, textAlignVertical: 'top' }} />
 
           <View className="bg-white rounded-2xl p-4 border border-line mb-4 flex-row justify-between items-center">
             <Text className="text-muted">Total</Text>

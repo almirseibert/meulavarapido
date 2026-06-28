@@ -1,11 +1,10 @@
 const express = require('express');
 const { query } = require('../db');
 const { ok, fail, wrap } = require('../utils/http');
-const { requireAuth } = require('../middleware/auth');
-const { washesToday, FREE_LIMITS } = require('../utils/plan');
+const { requireAuth, requireActiveAccess } = require('../middleware/auth');
 
 const router = express.Router();
-router.use(requireAuth);
+router.use(requireAuth, requireActiveAccess);
 
 // GET /api/washes
 // Filtros: from, to, client_id, vehicle_id, payment_type, status (open|paid),
@@ -68,23 +67,10 @@ router.post(
 );
 
 // POST /api/washes
-// Plano free: a partir da 6ª lavagem do dia exige confirmação de anúncio (via_ad=true).
 router.post(
   '/',
   wrap(async (req, res) => {
     const b = req.body;
-    if (!req.owner.isPremium) {
-      const count = await washesToday(req.owner.id);
-      if (count >= FREE_LIMITS.washesPerDay && !b.ad_watched) {
-        return fail(
-          res,
-          `Limite de ${FREE_LIMITS.washesPerDay} lavagens diárias no plano gratuito. Assista a um vídeo para registrar esta lavagem ou assine o plano premium.`,
-          402,
-          { requiresAd: true }
-        );
-      }
-    }
-
     const services = Array.isArray(b.services) ? b.services : [];
     const { rows } = await query(
       `INSERT INTO washes

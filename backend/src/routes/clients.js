@@ -1,10 +1,10 @@
 const express = require('express');
 const { query } = require('../db');
 const { ok, fail, wrap } = require('../utils/http');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireActiveAccess } = require('../middleware/auth');
 
 const router = express.Router();
-router.use(requireAuth);
+router.use(requireAuth, requireActiveAccess);
 
 // GET /api/clients?search= — clientes com seus veículos
 router.get(

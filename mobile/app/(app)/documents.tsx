@@ -1,19 +1,18 @@
 import React, { useCallback, useState } from 'react';
 import { View, Text, FlatList, Pressable, Modal, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect, router } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { Plus, X, FileDown, Trash2 } from 'lucide-react-native';
-import { Button, Input, Card, Pill, Empty } from '@/components/ui';
+import { Button, Input, Card, Empty } from '@/components/ui';
 import { api, unwrap, ApiError } from '@/lib/api';
 import { useApp } from '@/lib/stores/app';
-import { gateAction } from '@/lib/services/gate';
 import { generateAndShare } from '@/lib/services/receipt';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { ClientVehiclePicker, EMPTY_SELECTION, type PickerSelection } from '@/components/ClientPicker';
 import { PAYMENT_TYPES, type AppDocument, type Service } from '@/lib/types';
 
 export default function DocumentsScreen() {
-  const { services, usage, company, loadUsage } = useApp();
+  const { services, company } = useApp();
   const [tab, setTab] = useState<'receipt' | 'quote'>('quote');
   const [items, setItems] = useState<AppDocument[]>([]);
   const [modal, setModal] = useState(false);
@@ -25,7 +24,7 @@ export default function DocumentsScreen() {
     } catch {}
   }, []);
 
-  useFocusEffect(useCallback(() => { load(tab); loadUsage(); }, [load, tab]));
+  useFocusEffect(useCallback(() => { load(tab); }, [load, tab]));
 
   async function reprint(d: AppDocument) {
     if (!company) return;
@@ -34,8 +33,6 @@ export default function DocumentsScreen() {
       items: d.items, total: d.total, paymentType: d.payment_type, date: d.created_at,
     });
   }
-
-  const section = usage ? (tab === 'quote' ? usage.quotes : usage.receipts) : null;
 
   return (
     <SafeAreaView className="flex-1 bg-bg" edges={['top']}>
@@ -56,15 +53,6 @@ export default function DocumentsScreen() {
         ))}
       </View>
 
-      {usage && !usage.isPremium && section && (
-        <Pressable onPress={() => router.push('/premium')} className="mx-4 mb-2 bg-brand-50 rounded-xl px-3 py-2">
-          <Text className="text-brand-800 text-xs">
-            Plano grátis: {section.total}/{tab === 'quote' ? usage.limits.quotes : usage.limits.receipts} emitidos.{' '}
-            {section.requiresAd ? 'Próximo exige vídeo.' : `${section.remaining} restantes sem anúncio.`}
-          </Text>
-        </Pressable>
-      )}
-
       <FlatList
         data={items}
         keyExtractor={(i) => i.id}
@@ -74,10 +62,7 @@ export default function DocumentsScreen() {
           <Card className="mb-2">
             <View className="flex-row justify-between">
               <View className="flex-1">
-                <View className="flex-row items-center gap-2">
-                  <Text className="text-ink font-semibold">Nº {String(item.number).padStart(4, '0')}</Text>
-                  {item.via_ad ? <Pill text="via vídeo" tone="gray" /> : null}
-                </View>
+                <Text className="text-ink font-semibold">Nº {String(item.number).padStart(4, '0')}</Text>
                 <Text className="text-muted text-sm">{item.client_name || 'Sem cliente'}</Text>
                 <Text className="text-muted text-xs mt-0.5">{formatDate(item.created_at)}</Text>
               </View>
@@ -98,7 +83,7 @@ export default function DocumentsScreen() {
         kind={tab}
         services={services}
         onClose={() => setModal(false)}
-        onSaved={() => { setModal(false); load(tab); loadUsage(); }}
+        onSaved={() => { setModal(false); load(tab); }}
       />
     </SafeAreaView>
   );
@@ -107,7 +92,7 @@ export default function DocumentsScreen() {
 function DocFormModal({
   visible, kind, services, onClose, onSaved,
 }: { visible: boolean; kind: 'receipt' | 'quote'; services: Service[]; onClose: () => void; onSaved: () => void }) {
-  const { usage, company } = useApp();
+  const { company } = useApp();
   const [sel, setSel] = useState<PickerSelection>(EMPTY_SELECTION);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [payment, setPayment] = useState('Dinheiro');
@@ -126,15 +111,13 @@ function DocFormModal({
       return Alert.alert('Cadastro incompleto', 'Preencha os dados da lavagem em Ajustes antes de emitir.');
     }
     if (!chosen.length) return Alert.alert('Atenção', 'Selecione ao menos um serviço.');
-    const gate = await gateAction(kind, usage);
-    if (!gate.allow) return;
     setSaving(true);
     try {
       const items = chosen.map((s) => ({ name: s.name, price: Number(s.price) }));
       const doc = await unwrap<any>(
         api.post('/documents', {
           kind, client_name: sel.client_name, vehicle_info: sel.vehicle_info, items, total,
-          payment_type: payment, observations: obs, ad_watched: gate.adWatched,
+          payment_type: payment, observations: obs,
         })
       );
       await generateAndShare(company, {

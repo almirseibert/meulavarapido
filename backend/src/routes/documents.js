@@ -1,11 +1,11 @@
 const express = require('express');
 const { query } = require('../db');
 const { ok, fail, wrap } = require('../utils/http');
-const { requireAuth } = require('../middleware/auth');
-const { documentCount, usageSummary, FREE_LIMITS } = require('../utils/plan');
+const { requireAuth, requireActiveAccess } = require('../middleware/auth');
+const { usageSummary } = require('../utils/plan');
 
 const router = express.Router();
-router.use(requireAuth);
+router.use(requireAuth, requireActiveAccess);
 
 // GET /api/documents/usage — resumo de limites (lavagens/recibos/orçamentos)
 router.get(
@@ -32,26 +32,11 @@ router.get(
 );
 
 // POST /api/documents — registra recibo/orçamento emitido (gera o número sequencial)
-// Plano free: acima de 5 (por tipo) exige ad_watched=true.
 router.post(
   '/',
   wrap(async (req, res) => {
     const b = req.body;
     const kind = b.kind === 'quote' ? 'quote' : 'receipt';
-
-    if (!req.owner.isPremium) {
-      const count = await documentCount(req.owner.id, kind);
-      const limit = kind === 'quote' ? FREE_LIMITS.quotes : FREE_LIMITS.receipts;
-      if (count >= limit && !b.ad_watched) {
-        const label = kind === 'quote' ? 'orçamentos' : 'recibos';
-        return fail(
-          res,
-          `Limite de ${limit} ${label} no plano gratuito. Assista a um vídeo para emitir ou assine o plano premium.`,
-          402,
-          { requiresAd: true }
-        );
-      }
-    }
 
     // número sequencial por owner + kind
     const seq = await query(
@@ -62,12 +47,12 @@ router.post(
 
     const { rows } = await query(
       `INSERT INTO documents
-         (owner_id, kind, number, client_name, vehicle_info, items, total, payment_type, observations, via_ad)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+         (owner_id, kind, number, client_name, vehicle_info, items, total, payment_type, observations)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
       [
         req.owner.id, kind, number, b.client_name || null, b.vehicle_info || null,
         JSON.stringify(Array.isArray(b.items) ? b.items : []), Number(b.total) || 0,
-        b.payment_type || null, b.observations || null, !!b.ad_watched,
+        b.payment_type || null, b.observations || null,
       ]
     );
     return ok(res, rows[0], kind === 'quote' ? 'Orçamento registrado.' : 'Recibo registrado.', 201);

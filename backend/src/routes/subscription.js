@@ -7,8 +7,8 @@ const router = express.Router();
 
 // Catálogo de planos (preços que o app exibe; a cobrança real ocorre via IAP/RevenueCat).
 const PLANS = {
-  monthly: { id: 'meulavarapido_premium_monthly', label: 'Premium Mensal', price: 19.9, period: 'mês' },
-  yearly: { id: 'meulavarapido_premium_yearly', label: 'Premium Anual', price: 119.9, period: 'ano' },
+  monthly: { id: 'meulavarapido_premium_monthly', label: 'Premium Mensal', price: 49.9, period: 'mês' },
+  yearly: { id: 'meulavarapido_premium_yearly', label: 'Premium Anual', price: 499.9, period: 'ano' },
 };
 
 // GET /api/subscription/plans — público
@@ -20,7 +20,15 @@ router.get(
   requireAuth,
   wrap(async (req, res) => {
     const { rows } = await query('SELECT plan, premium_until FROM owners WHERE id = $1', [req.owner.id]);
-    return ok(res, { ...rows[0], isPremium: req.owner.isPremium, plans: PLANS });
+    return ok(res, {
+      ...rows[0],
+      isPremium: req.owner.isPremium,
+      trialActive: req.owner.trialActive,
+      trialDaysLeft: req.owner.trialDaysLeft,
+      trialEndsAt: req.owner.trialEndsAt,
+      hasAccess: req.owner.hasAccess,
+      plans: PLANS,
+    });
   })
 );
 
