@@ -91,7 +91,10 @@ export async function purchase(plan: 'monthly' | 'yearly'): Promise<boolean> {
     }
   }
 
-  // Modo manual (DEV / sem RevenueCat configurado): ativa no backend para teste.
+  // RevenueCat não configurado: bloqueia em produção, permite em DEV via backend.
+  if (process.env.EXPO_PUBLIC_ENV === 'production') {
+    throw new Error('Pagamento indisponível: RevenueCat não está configurado.');
+  }
   await api.post('/subscription/activate', { plan });
   return true;
 }

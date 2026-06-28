@@ -74,8 +74,11 @@ export default function Register() {
     try {
       const idToken = await confirmPhoneCode(confirmation, code.trim());
       await finishRegister({ firebaseIdToken: idToken });
-    } catch (e) {
-      Alert.alert('Código inválido', e instanceof ApiError ? e.message : 'Não foi possível confirmar o código. Tente novamente.');
+    } catch (e: any) {
+      const msg = e instanceof ApiError
+        ? e.message
+        : `Não foi possível confirmar o código. Tente novamente.\n\n(${e?.code || e?.message || 'erro desconhecido'})`;
+      Alert.alert('Código inválido', msg);
     } finally {
       setBusy(false);
     }

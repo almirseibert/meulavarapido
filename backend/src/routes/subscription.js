@@ -34,16 +34,16 @@ router.get(
 
 /**
  * POST /api/subscription/activate
- * Ativa/renova o premium. Em produção, o backend deve VALIDAR o recibo da loja
- * (App Store / Play) ou confiar no webhook do RevenueCat. Aqui registramos a
- * vigência para liberar os recursos no app.
- *
- * Body: { plan: 'monthly' | 'yearly', receipt?: string }
+ * Ativação manual de premium — exclusivo para ambiente de DESENVOLVIMENTO.
+ * Em produção a ativação ocorre via webhook do RevenueCat após pagamento real.
  */
 router.post(
   '/activate',
   requireAuth,
   wrap(async (req, res) => {
+    if (process.env.NODE_ENV === 'production') {
+      return fail(res, 'Ativação manual indisponível em produção.', 403);
+    }
     const plan = req.body.plan === 'yearly' ? 'yearly' : 'monthly';
     const months = plan === 'yearly' ? 12 : 1;
     const { rows } = await query(
@@ -54,7 +54,7 @@ router.post(
         RETURNING plan, premium_until`,
       [String(months), req.owner.id]
     );
-    return ok(res, { ...rows[0], isPremium: true }, 'Assinatura ativada.');
+    return ok(res, { ...rows[0], isPremium: true }, '[DEV] Assinatura ativada manualmente.');
   })
 );
 

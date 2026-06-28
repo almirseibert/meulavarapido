@@ -36,9 +36,11 @@ export async function sendPhoneCode(phoneE164: string): Promise<any | null> {
 
 /** Confirma o código e devolve o ID token do Firebase (para o backend validar). */
 export async function confirmPhoneCode(confirmation: any, code: string): Promise<string> {
-  await confirmation.confirm(code);
-  const auth = load();
-  const token = await auth().currentUser.getIdToken();
-  try { await auth().signOut(); } catch { /* ignore */ }
+  // confirm() retorna UserCredential — usar .user direto evita race condition com currentUser no Android
+  const credential = await confirmation.confirm(code);
+  const user = credential?.user ?? load()?.()?.currentUser;
+  if (!user) throw new Error('auth/user-not-found-after-confirm');
+  const token = await user.getIdToken();
+  try { await load()?.()?.signOut(); } catch { /* ignore */ }
   return token;
 }
