@@ -15,7 +15,7 @@ router.get(
     if (req.query.from) { params.push(req.query.from); where += ` AND date >= $${params.length}`; }
     if (req.query.to) { params.push(req.query.to); where += ` AND date <= $${params.length}`; }
     const { rows } = await query(
-      `SELECT * FROM expenses WHERE ${where} ORDER BY date DESC LIMIT 500`,
+      `SELECT * FROM expenses WHERE ${where} ORDER BY date DESC LIMIT 2000`,
       params
     );
     return ok(res, rows);

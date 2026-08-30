@@ -12,17 +12,21 @@ export interface PickerSelection {
   client_name: string;
   vehicle_info: string;
   phone?: string | null;
+  document?: string | null;
   address?: string | null;
   allow_credit?: boolean;
 }
 
 export const EMPTY_SELECTION: PickerSelection = {
   client_id: null, vehicle_id: null, client_name: '', vehicle_info: '',
-  phone: null, address: null, allow_credit: false,
+  phone: null, document: null, address: null, allow_credit: false,
 };
 
+// Rótulo legível do veículo (também é o texto propagado para recibos/relatórios).
 export function vehicleLabel(v: Vehicle): string {
-  return [v.make, v.model, v.license_plate].filter(Boolean).join(' ') || 'Veículo';
+  const base = [v.make, v.model, v.year, v.license_plate].filter(Boolean).join(' ');
+  if (v.nickname && base) return `${v.nickname} · ${base}`;
+  return v.nickname || base || 'Veículo';
 }
 
 // Seletor reutilizável: escolhe um cliente cadastrado (e um de seus veículos)
@@ -117,20 +121,25 @@ function PickerModal({
     }
   }, [visible, manualStart, load]);
 
-  function pickClientNoVehicle(c: Client) {
-    // Se o cliente tem veículos, abre a escolha do veículo (mesmo quando não é
-    // obrigatório) — assim dá para selecionar qual veículo entre vários.
-    if ((c.vehicles?.length || 0) > 0) { setSelected(c); setVSearch(''); return; }
+  // Seleciona o cliente inteiro (toda a frota), sem filtrar por veículo.
+  function pickWholeClient(c: Client) {
     onPick({
       client_id: c.id, vehicle_id: null, client_name: c.name, vehicle_info: '',
-      phone: c.phone || null, address: c.address || null, allow_credit: !!c.allow_credit,
+      phone: c.phone || null, document: c.document || null, address: c.address || null, allow_credit: !!c.allow_credit,
     });
+  }
+
+  // Toque no cliente: veículo é OPCIONAL. Só abre a escolha de veículo quando ela
+  // é obrigatória (requireVehicle); caso contrário seleciona a frota inteira.
+  function openClient(c: Client) {
+    if (requireVehicle && (c.vehicles?.length || 0) > 0) { setSelected(c); setVSearch(''); return; }
+    pickWholeClient(c);
   }
 
   function pickVehicle(c: Client, v: Vehicle) {
     onPick({
       client_id: c.id, vehicle_id: v.id, client_name: c.name, vehicle_info: vehicleLabel(v),
-      phone: c.phone || null, address: c.address || null, allow_credit: !!c.allow_credit,
+      phone: c.phone || null, document: c.document || null, address: c.address || null, allow_credit: !!c.allow_credit,
     });
   }
 
@@ -138,7 +147,7 @@ function PickerModal({
     if (!mName.trim()) return Alert.alert('Atenção', 'Informe o nome do cliente.');
     onPick({
       client_id: null, vehicle_id: null, client_name: mName.trim(), vehicle_info: mVehicle.trim(),
-      phone: null, address: null, allow_credit: false,
+      phone: null, document: null, address: null, allow_credit: false,
     });
   }
 
@@ -177,7 +186,7 @@ function PickerModal({
                 <Text className="text-ink font-semibold text-base mb-1">{selected.name}</Text>
                 <Text className="text-muted text-sm mb-3">Selecione o veículo:</Text>
                 {(selected.vehicles || []).length > 0 && (
-                  <Input placeholder="Buscar veículo (modelo ou placa)" value={vSearch} onChangeText={setVSearch} className="mb-2" />
+                  <Input placeholder="Filtrar veículo (apelido, marca, modelo ou placa)" value={vSearch} onChangeText={setVSearch} className="mb-2" />
                 )}
               </View>
             }
@@ -197,8 +206,8 @@ function PickerModal({
             ListFooterComponent={
               <View>
                 {!requireVehicle && (
-                  <Pressable onPress={() => pickClientNoVehicle({ ...selected, vehicles: [] })} className="items-center mt-2">
-                    <Text className="text-muted">Sem veículo específico</Text>
+                  <Pressable onPress={() => pickWholeClient(selected)} className="items-center mt-2">
+                    <Text className="text-brand-700 font-medium">Todos os veículos (não filtrar)</Text>
                   </Pressable>
                 )}
                 <Pressable onPress={() => { setSelected(null); setVSearch(''); }} className="items-center mt-3">
@@ -223,17 +232,19 @@ function PickerModal({
               contentContainerStyle={{ padding: 16, paddingTop: 4 }}
               ListEmptyComponent={<Empty title="Nenhum cliente" subtitle="Cadastre clientes na aba Clientes." />}
               renderItem={({ item }) => (
-                <Pressable onPress={() => pickClientNoVehicle(item)} className="border border-line rounded-2xl px-4 py-3 bg-white mb-2">
-                  <View className="flex-row items-center">
-                    <User color="#0891b2" size={16} />
-                    <Text className="text-ink font-semibold ml-2 flex-1">{item.name}</Text>
-                    {item.allow_credit ? (
-                      <View className="bg-amber-100 px-2 py-0.5 rounded-full">
-                        <Text className="text-amber-700 text-xs font-semibold">a prazo</Text>
-                      </View>
-                    ) : null}
-                  </View>
-                  {item.phone ? <Text className="text-muted text-sm mt-0.5 ml-6">{item.phone}</Text> : null}
+                <View className="border border-line rounded-2xl px-4 py-3 bg-white mb-2">
+                  <Pressable onPress={() => openClient(item)}>
+                    <View className="flex-row items-center">
+                      <User color="#0891b2" size={16} />
+                      <Text className="text-ink font-semibold ml-2 flex-1">{item.name}</Text>
+                      {item.allow_credit ? (
+                        <View className="bg-amber-100 px-2 py-0.5 rounded-full">
+                          <Text className="text-amber-700 text-xs font-semibold">a prazo</Text>
+                        </View>
+                      ) : null}
+                    </View>
+                    {item.phone ? <Text className="text-muted text-sm mt-0.5 ml-6">{item.phone}</Text> : null}
+                  </Pressable>
                   {(item.vehicles || []).map((v) => (
                     <Pressable
                       key={v.id}
@@ -246,9 +257,16 @@ function PickerModal({
                     </Pressable>
                   ))}
                   {(item.vehicles?.length || 0) > 0 ? (
-                    <Text className="text-muted text-xs ml-6 mt-1">Toque no veículo para selecioná-lo</Text>
+                    <Text className="text-muted text-xs ml-6 mt-1">
+                      Toque no nome para todos os veículos, ou num veículo específico para filtrar.
+                    </Text>
                   ) : null}
-                </Pressable>
+                  {(item.vehicles?.length || 0) > 3 ? (
+                    <Pressable onPress={() => { setSelected(item); setVSearch(''); }} className="ml-6 mt-1">
+                      <Text className="text-brand-700 text-xs font-semibold">Filtrar veículos (busca) ›</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
               )}
             />
           </>

@@ -1,5 +1,6 @@
 import '../global.css';
 import React, { useEffect } from 'react';
+import { LogBox } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -15,6 +16,13 @@ import {
 import { useAuth } from '@/lib/stores/auth';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
+
+// Em dev/emulador sem Google Play Billing, o RevenueCat loga erros BILLING_UNAVAILABLE
+// ao buscar ofertas no configure. São inofensivos (não ocorrem em aparelho com conta
+// Play). Silencia só o overlay do LogBox (que existe apenas em dev) para não poluir os testes.
+if (__DEV__) {
+  LogBox.ignoreLogs([/\[RevenueCat\]/, 'BILLING_UNAVAILABLE', 'PurchaseNotAllowedError']);
+}
 
 // Garante que a rota base do app é a index (que redireciona para login/área logada),
 // e não a tela modal "premium".

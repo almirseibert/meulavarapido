@@ -77,6 +77,8 @@ CREATE INDEX IF NOT EXISTS idx_clients_owner ON clients(owner_id);
 ALTER TABLE clients ADD COLUMN IF NOT EXISTS allow_credit BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE clients ADD COLUMN IF NOT EXISTS address TEXT;
 ALTER TABLE clients ADD COLUMN IF NOT EXISTS notes   TEXT;
+-- Contato adicional propagável para recibos/orçamentos/relatórios.
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS email   TEXT;
 
 -- ---------- Veículos ----------
 CREATE TABLE IF NOT EXISTS vehicles (
@@ -91,6 +93,9 @@ CREATE TABLE IF NOT EXISTS vehicles (
 );
 CREATE INDEX IF NOT EXISTS idx_vehicles_owner ON vehicles(owner_id);
 CREATE INDEX IF NOT EXISTS idx_vehicles_client ON vehicles(client_id);
+-- Dados extras do veículo (todos opcionais), usados no filtro e propagados aos documentos.
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS nickname TEXT;   -- apelido ("carro do trabalho")
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS year     TEXT;   -- ano/modelo
 
 -- ---------- Lavagens ----------
 CREATE TABLE IF NOT EXISTS washes (
@@ -217,3 +222,69 @@ CREATE TABLE IF NOT EXISTS documents (
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_documents_owner_kind ON documents(owner_id, kind);
+-- Contato/documento do cliente no momento da emissão (mantém o recibo reimprimível).
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS client_phone    TEXT;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS client_document TEXT;
+
+-- ---------- Cadastro complementar (todos opcionais) ----------
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS city       TEXT;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS birth_date TEXT;  -- DD/MM/AAAA (felicitações/CRM)
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS notes     TEXT;  -- avarias, preferências do dono
+
+-- ---------- Antiduplicidade por conta ----------
+-- Mesmo CPF/CNPJ não pode repetir DENTRO da mesma lavagem (owners diferentes podem
+-- atender o mesmo cliente). Compara só os dígitos, ignorando a formatação.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_clients_owner_document
+  ON clients (owner_id, regexp_replace(document, E'\D', '', 'g'))
+  WHERE document IS NOT NULL AND document <> '';
+-- Mesma placa não pode repetir na conta, nem no mesmo cliente nem em outro.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_vehicles_owner_plate
+  ON vehicles (owner_id, upper(regexp_replace(license_plate, E'[^A-Za-z0-9]', '', 'g')))
+  WHERE license_plate IS NOT NULL AND license_plate <> '';
+
+-- ---------- Serviços: descrição + histórico de preços ----------
+-- description alimenta automaticamente o detalhamento de recibos e orçamentos.
+ALTER TABLE services ADD COLUMN IF NOT EXISTS description TEXT;
+
+-- Cada alteração de preço vira uma vigência. O preço de um serviço numa data D é o
+-- da vigência mais recente com valid_from <= D. Lavagens já lançadas guardam o preço
+-- praticado dentro de washes.services (snapshot), por isso o passado nunca muda.
+CREATE TABLE IF NOT EXISTS service_prices (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  owner_id    UUID NOT NULL REFERENCES owners(id) ON DELETE CASCADE,
+  service_id  UUID NOT NULL REFERENCES services(id) ON DELETE CASCADE,
+  price       NUMERIC(10,2) NOT NULL DEFAULT 0,
+  valid_from  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_service_prices_service ON service_prices(service_id, valid_from DESC);
+-- Backfill: serviços existentes ganham a vigência inicial com o preço atual.
+INSERT INTO service_prices (owner_id, service_id, price, valid_from)
+  SELECT s.owner_id, s.id, s.price, s.created_at FROM services s
+  WHERE NOT EXISTS (SELECT 1 FROM service_prices p WHERE p.service_id = s.id);
+
+-- ---------- Notificações push (novidades e promoções) ----------
+CREATE TABLE IF NOT EXISTS push_tokens (
+  token      TEXT PRIMARY KEY,                -- ExponentPushToken[...]
+  owner_id   UUID NOT NULL REFERENCES owners(id) ON DELETE CASCADE,
+  platform   TEXT,                            -- android | ios
+  app_version TEXT,
+  disabled   BOOLEAN NOT NULL DEFAULT FALSE,  -- marcado quando o Expo devolve DeviceNotRegistered
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_push_tokens_owner ON push_tokens(owner_id);
+
+-- Histórico dos envios feitos pelo painel do administrador.
+CREATE TABLE IF NOT EXISTS broadcasts (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  audience   TEXT NOT NULL,                   -- all | premium | free | trial | expired
+  title      TEXT NOT NULL,
+  body       TEXT NOT NULL,
+  data       JSONB NOT NULL DEFAULT '{}'::jsonb,
+  sent       INTEGER NOT NULL DEFAULT 0,
+  failed     INTEGER NOT NULL DEFAULT 0,
+  sent_by    UUID REFERENCES owners(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_broadcasts_created ON broadcasts(created_at DESC);

@@ -7,6 +7,7 @@ import {
 import { useAuth } from '@/lib/stores/auth';
 import { useApp } from '@/lib/stores/app';
 import { configurePurchases } from '@/lib/services/subscription';
+import { registerPushDevice } from '@/lib/services/notify';
 
 export default function AppLayout() {
   const owner = useAuth((s) => s.owner);
@@ -19,6 +20,8 @@ export default function AppLayout() {
       refresh().catch(() => {});   // atualiza estado de trial/assinatura
       refreshAll().catch(() => {});
       configurePurchases(owner.id);
+      // Registra o aparelho para receber novidades/promoções (falha em silêncio).
+      registerPushDevice();
     }
   }, [owner?.id]);
 
@@ -53,6 +56,7 @@ export default function AppLayout() {
       <Tabs.Screen name="reports" options={{ href: null }} />
       <Tabs.Screen name="callback" options={{ href: null }} />
       <Tabs.Screen name="pickup" options={{ href: null }} />
+      <Tabs.Screen name="broadcast" options={{ href: null }} />
     </Tabs>
   );
 }

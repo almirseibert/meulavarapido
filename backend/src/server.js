@@ -35,6 +35,8 @@ app.use('/api/support', require('./routes/support'));
 app.use('/api/helpers', require('./routes/helpers'));
 app.use('/api/reports', require('./routes/reports'));
 app.use('/api/crm', require('./routes/crm'));
+app.use('/api/devices', require('./routes/devices'));
+app.use('/api/admin', require('./routes/admin'));
 
 // 404
 app.use((req, res) => fail(res, 'Rota não encontrada.', 404));

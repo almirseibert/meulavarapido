@@ -30,7 +30,8 @@ export default function DocumentsScreen() {
     if (!company) return;
     await generateAndShare(company, {
       kind: d.kind, number: d.number, clientName: d.client_name, vehicleInfo: d.vehicle_info,
-      items: d.items, total: d.total, paymentType: d.payment_type, date: d.created_at,
+      clientPhone: d.client_phone, clientDocument: d.client_document,
+      items: d.items, total: d.total, paymentType: d.payment_type, observations: d.observations, date: d.created_at,
     });
   }
 
@@ -113,15 +114,23 @@ function DocFormModal({
     if (!chosen.length) return Alert.alert('Atenção', 'Selecione ao menos um serviço.');
     setSaving(true);
     try {
-      const items = chosen.map((s) => ({ name: s.name, price: Number(s.price) }));
+      // A descrição cadastrada no serviço vira o detalhamento no documento.
+      const items = chosen.map((s) => ({
+        name: s.name,
+        price: Number(s.price),
+        description: s.description || undefined,
+      }));
       const doc = await unwrap<any>(
         api.post('/documents', {
-          kind, client_name: sel.client_name, vehicle_info: sel.vehicle_info, items, total,
-          payment_type: payment, observations: obs,
+          kind, client_name: sel.client_name, vehicle_info: sel.vehicle_info,
+          client_phone: sel.phone, client_document: sel.document,
+          items, total, payment_type: payment, observations: obs,
         })
       );
       await generateAndShare(company, {
-        kind, number: doc.number, clientName: sel.client_name, vehicleInfo: sel.vehicle_info, items, total, paymentType: payment, observations: obs,
+        kind, number: doc.number, clientName: sel.client_name, vehicleInfo: sel.vehicle_info,
+        clientPhone: sel.phone || undefined, clientDocument: sel.document || undefined,
+        items, total, paymentType: payment, observations: obs,
       });
       onSaved();
     } catch (e) {

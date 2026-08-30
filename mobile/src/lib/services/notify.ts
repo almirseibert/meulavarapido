@@ -3,7 +3,9 @@
 // Requer expo-notifications (instalar com: npx expo install expo-notifications)
 // e um dev build/standalone — não funciona no Expo Go do SDK 53+.
 import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import { api } from '../api';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -15,7 +17,9 @@ Notifications.setNotificationHandler({
 });
 
 const CHANNEL = 'tele-busca';
+const NEWS_CHANNEL = 'novidades';
 let permissionAsked = false;
+let registeredToken: string | null = null;
 
 export async function ensureNotificationPermission(): Promise<boolean> {
   try {
@@ -37,6 +41,60 @@ export async function ensureNotificationPermission(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Notificações remotas (novidades e promoções enviadas pelo administrador).
+// ---------------------------------------------------------------------------
+
+const projectId =
+  (Constants.expoConfig as any)?.extra?.eas?.projectId ||
+  (Constants as any)?.easConfig?.projectId;
+
+/**
+ * Pega o token push do aparelho e registra no servidor, para que ele possa
+ * receber os comunicados. Idempotente: só chama a API quando o token muda.
+ * Falha em silêncio (emulador sem Play Services, permissão negada etc.).
+ */
+export async function registerPushDevice(): Promise<string | null> {
+  try {
+    const granted = await ensureNotificationPermission();
+    if (!granted) return null;
+
+    if (Platform.OS === 'android') {
+      await Notifications.setNotificationChannelAsync(NEWS_CHANNEL, {
+        name: 'Novidades e promoções',
+        importance: Notifications.AndroidImportance.DEFAULT,
+      });
+    }
+
+    const { data: token } = await Notifications.getExpoPushTokenAsync(
+      projectId ? { projectId } : undefined
+    );
+    if (!token) return null;
+    if (token === registeredToken) return token;
+
+    await api.post('/devices', {
+      token,
+      platform: Platform.OS,
+      app_version: Constants.expoConfig?.version || null,
+    });
+    registeredToken = token;
+    return token;
+  } catch {
+    return null;
+  }
+}
+
+/** Desvincula o aparelho ao sair da conta (para não receber avisos de outra conta). */
+export async function unregisterPushDevice(): Promise<void> {
+  if (!registeredToken) return;
+  try {
+    await api.delete(`/devices/${encodeURIComponent(registeredToken)}`);
+  } catch {
+    /* silencioso */
+  }
+  registeredToken = null;
 }
 
 interface PickupLike {

@@ -6,12 +6,16 @@ import type { Company } from '../types';
 export interface DocItem {
   name: string;
   price: number;
+  /** Detalhamento do serviço (vem do cadastro de Serviços e valores). */
+  description?: string | null;
 }
 
 export interface ReceiptData {
   kind: 'receipt' | 'quote';
   number: number;
   clientName?: string;
+  clientPhone?: string;
+  clientDocument?: string;
   vehicleInfo?: string;
   items: DocItem[];
   total: number;
@@ -29,8 +33,11 @@ function buildHtml(company: Company, doc: ReceiptData): string {
   const rows = doc.items
     .map(
       (i) => `<tr>
-        <td style="padding:8px 4px;border-bottom:1px solid #eee">${esc(i.name)}</td>
-        <td style="padding:8px 4px;border-bottom:1px solid #eee;text-align:right">${formatCurrency(i.price)}</td>
+        <td style="padding:8px 4px;border-bottom:1px solid #eee">
+          ${esc(i.name)}
+          ${i.description ? `<div style="color:#64748b;font-size:11px;margin-top:2px">${esc(i.description)}</div>` : ''}
+        </td>
+        <td style="padding:8px 4px;border-bottom:1px solid #eee;text-align:right;vertical-align:top">${formatCurrency(i.price)}</td>
       </tr>`
     )
     .join('');
@@ -69,6 +76,8 @@ function buildHtml(company: Company, doc: ReceiptData): string {
 
     <div class="box">
       <div><strong>Cliente:</strong> ${esc(doc.clientName || '-')}</div>
+      ${doc.clientDocument ? `<div><strong>CPF/CNPJ:</strong> ${esc(doc.clientDocument)}</div>` : ''}
+      ${doc.clientPhone ? `<div><strong>Telefone:</strong> ${esc(doc.clientPhone)}</div>` : ''}
       ${doc.vehicleInfo ? `<div><strong>Veículo:</strong> ${esc(doc.vehicleInfo)}</div>` : ''}
       ${doc.paymentType ? `<div><strong>Pagamento:</strong> ${esc(doc.paymentType)}</div>` : ''}
     </div>

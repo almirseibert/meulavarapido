@@ -58,12 +58,14 @@ router.get(
   })
 );
 
-// GET /api/reports/open?client_id — lavagens em aberto (faturamento posterior a receber)
+// GET /api/reports/open?client_id — TUDO que ainda não foi recebido.
+// Não filtra por forma de pagamento: o card "A receber" do início soma exatamente
+// este mesmo conjunto, então baixar aqui derruba o valor de lá.
 router.get(
   '/open',
   wrap(async (req, res) => {
     const params = [req.owner.id];
-    let where = `owner_id = $1 AND is_charged = false AND payment_type = 'Faturamento Posterior'`;
+    let where = `owner_id = $1 AND is_charged = false`;
     if (req.query.client_id) {
       params.push(req.query.client_id);
       where += ` AND client_id = $${params.length}`;

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { api, saveToken, getToken, clearToken, unwrap } from '../api';
+import { unregisterPushDevice } from '../services/notify';
 import type { Owner } from '../types';
 
 interface AuthState {
@@ -76,6 +77,8 @@ export const useAuth = create<AuthState>((set, get) => ({
   },
 
   logout: async () => {
+    // Desvincula o aparelho antes de limpar o token (senão a chamada vai sem auth).
+    await unregisterPushDevice();
     await clearToken();
     set({ owner: null });
   },

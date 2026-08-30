@@ -153,19 +153,21 @@ Legenda do gate: **[Auth]** exige login · **[Esc]** = `requireActiveAccess` (bl
 | `auth` | POST `/register`, POST `/login`, GET `/me`, PUT `/me` | público (register/login); `/me` [Auth] |
 | `subscription` | GET `/plans` (público), GET `/status`, POST `/activate`, POST `/webhook` (RevenueCat) | [Auth] exceto plans/webhook |
 | `company` | GET `/`, PUT `/` (valida CNPJ/CPF único) | [Auth][Esc] |
-| `services` | GET, POST, PUT `/:id`, DELETE `/:id` | [Auth][Esc] |
+| `services` | GET, GET `/price-at`, GET `/:id/prices`, POST, PUT `/:id`, DELETE `/:id` | [Auth][Esc] |
 | `clients` | GET, POST, PUT `/:id`, DELETE `/:id`, POST `/:id/vehicles`, PUT `/vehicles/:vehicleId`, DELETE `/vehicles/:vehicleId` | [Auth][Esc] |
 | `washes` | GET, POST `/settle`, POST `/`, PUT `/:id`, PATCH `/:id/charge`, PATCH `/:id/pickup-status`, DELETE `/:id` | [Auth][Esc] |
 | `schedules` | GET, POST, PUT `/:id`, DELETE `/:id` | [Auth][Esc] |
 | `documents` | GET `/usage`, GET `/`, POST `/` (recibo/orçamento) | [Auth][Esc] |
 | `expenses` | GET, POST, PUT `/:id`, DELETE `/:id` | [Auth][Esc] |
 | `suppliers` | GET, POST, PUT `/:id`, DELETE `/:id` | [Auth][Esc] |
-| `helpers` | GET, POST, PUT `/:id`, PATCH `/:id/active`, DELETE `/:id` | [Auth][Esc] |
+| `helpers` | GET, GET `/:id/statement`, POST `/:id/settle`, POST, PUT `/:id`, PATCH `/:id/active`, DELETE `/:id` | [Auth][Esc] |
 | `crm` | GET/PUT `/settings`, GET `/inactive`, POST `/:clientId/contact`, POST `/:clientId/ignore` | [Auth][Esc] |
 | `import` | POST `/` (importa backup JSON do app antigo) | [Auth][Prem] |
-| `dashboard` | GET `/` (KPIs do mês) | [Auth] |
+| `dashboard` | GET `/?month=YYYY-MM` ou `?from&to` (KPIs do período; padrão mês atual) | [Auth] |
 | `reports` | GET `/washes`, GET `/by-vehicle`, GET `/open` | [Auth] |
 | `support` | GET `/contact`, POST `/message` | misto |
+| `devices` | POST `/` (registra token push), DELETE `/:token` | [Auth] |
+| `admin` | GET `/me`, GET `/audiences`, POST `/broadcast`, POST `/broadcast/test`, GET `/broadcasts` | [Auth] + `ADMIN_EMAILS` |
 
 O webhook do RevenueCat usa **corpo cru** (tratado especial em `server.js`) e é a fonte da verdade
 das renovações/cancelamentos em produção (`app_user_id` = `owners.id`).
@@ -280,6 +282,8 @@ sem Firebase; ao configurar, a verificação passa a ser obrigatória.
 | `PORT` | Porta do servidor (3000) |
 | `REVENUECAT_WEBHOOK_SECRET` | Valida o webhook RevenueCat (opcional) |
 | `FIREBASE_PROJECT_ID` / `FIREBASE_CLIENT_EMAIL` / `FIREBASE_PRIVATE_KEY` | Verificação de telefone (sem isso = modo dev) |
+| `ADMIN_EMAILS` | E-mails que podem abrir a Central de novidades e disparar push (separados por vírgula) |
+| `EXPO_ACCESS_TOKEN` | Opcional — autentica os envios no serviço de push do Expo |
 
 **App (`mobile/.env`):**
 
@@ -350,3 +354,39 @@ A config do Firebase no app vem dos arquivos nativos (`google-services.json` /
 - **Anti-abuso**: telefone único e verificado (Firebase Phone Auth) + CNPJ/CPF único.
 - **Importar JSON** restrito a assinantes Premium.
 - Campo **observações** na lavagem; correção da **seleção de veículo** quando o cliente tem vários.
+
+## 16. Notificações push (novidades e promoções)
+
+- **Aparelho**: `mobile/src/lib/services/notify.ts` → `registerPushDevice()` é chamado no
+  `(app)/_layout.tsx` a cada abertura logada; grava o `ExponentPushToken` em `push_tokens`.
+  O logout chama `unregisterPushDevice()`.
+- **Envio**: quem estiver em `ADMIN_EMAILS` vê "Novidades e promoções" em Ajustes
+  (tela `(app)/broadcast.tsx`). Dá para escolher o público — **Todos**, **Assinantes**,
+  **Plano free**, **Em teste** ou **Teste expirado** — enviar um teste só para si e ver o histórico.
+- **Servidor**: `utils/push.js` fala com a API do Expo em lotes de 100. Tokens que voltam
+  `DeviceNotRegistered` (app desinstalado) são marcados `disabled` automaticamente.
+- Não funciona no Expo Go do SDK 53+ nem em emulador sem Play Services — teste no APK/AAB.
+
+---
+
+## 17. Histórico de mudanças (ago/2026 — pré-lançamento)
+
+- **Push de novidades/promoções** com recorte por plano (ver §16).
+- **Colaboradores**: saldo agora é *débitos − créditos*, onde crédito inclui a diária/bônus
+  marcada como paga em Despesas. Novo botão **Pagar** (`POST /helpers/:id/settle`) liquida o
+  montante devido do lançamento mais antigo para o mais novo, e **Extrato** mostra tudo.
+  Novo tipo de lançamento: **Bônus**.
+- **Cadastro mais completo**: cliente ganha e-mail, cidade e aniversário; veículo ganha
+  apelido, ano e observações — todos opcionais.
+- **Início**: seletor de mês (últimos 24) ou período livre; abre sempre no mês atual.
+- **"A receber"**: o card somava *tudo* em aberto, mas o relatório só listava
+  "Faturamento Posterior" — por isso a baixa nunca derrubava o número. Agora os dois usam
+  o mesmo conjunto (`is_charged = false`) e a baixa em lote é um único `POST /washes/settle`.
+- **Despesas**: agrupadas em mês → tipo → lançamentos, carregando 12 meses.
+- **Serviços**: edição funcionando no Android (o antigo `Alert.prompt` só existe no iOS),
+  campo **descrição** (vai para recibo/orçamento) e **histórico de vigências de preço**
+  (`service_prices`) — lavagens antigas mantêm o valor praticado na época.
+- **Antiduplicidade por conta**: mesmo CPF/CNPJ e mesma placa não podem repetir dentro da
+  mesma lavagem (índices únicos + verificação com mensagem amigável). Contas diferentes
+  continuam podendo ter o mesmo cliente/carro.
+- **Data da lavagem** no cadastro (com atalhos Hoje/Ontem/Anteontem), não só na edição.

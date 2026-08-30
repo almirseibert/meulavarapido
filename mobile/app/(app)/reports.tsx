@@ -16,10 +16,16 @@ const TYPES: { id: ReportType; label: string }[] = [
   { id: 'periodo', label: 'Por período' },
   { id: 'cliente', label: 'Por cliente' },
   { id: 'veiculo', label: 'Por tipo de veículo' },
-  { id: 'aberto', label: 'Lavagens em aberto' },
+  { id: 'aberto', label: 'A receber (em aberto)' },
 ];
 
 function startOfMonth(d = new Date()) { return new Date(d.getFullYear(), d.getMonth(), 1); }
+
+// Anexa a observação da lavagem ao subtítulo da linha do relatório, quando houver.
+function withObs(base: string, obs?: string | null): string {
+  const o = (obs || '').trim();
+  return o ? `${base} · Obs: ${o}` : base;
+}
 
 export default function ReportsScreen() {
   const company = useApp((s) => s.company);
@@ -59,10 +65,12 @@ export default function ReportsScreen() {
         setTotal(r.total || 0);
       } else if (type === 'aberto') {
         const r = await unwrap<any>(api.get('/reports/open', { params: { client_id: client?.id } }));
-        setTitle(client ? `Em aberto — ${client.name}` : 'Lavagens em aberto (a receber)');
+        setTitle(client ? `Em aberto — ${client.name}` : 'A receber — tudo que ainda não foi pago');
         setOpenItems((r.items || []).map((w: any) => ({ id: w.id })));
         setRows((r.items || []).map((w: any) => ({
-          left: w.client_name || 'Sem cliente', sub: `${w.vehicle_info || ''} · ${formatDate(w.date)}`.trim(), value: Number(w.price) || 0, flag: '(Aberto)',
+          left: w.client_name || 'Sem cliente',
+          sub: withObs(`${w.vehicle_info || ''} · ${formatDate(w.date)}`.trim(), w.observations),
+          value: Number(w.price) || 0, flag: '(Aberto)',
         })));
         setTotal(r.total || 0);
       } else {
@@ -71,7 +79,7 @@ export default function ReportsScreen() {
         setTitle(client ? `Lavagens — ${client.name}` : 'Lavagens no período');
         setRows((r.items || []).map((w: any) => ({
           left: `${w.client_name || 'Sem cliente'}${w.vehicle_info ? ' · ' + w.vehicle_info : ''}`,
-          sub: formatDate(w.date), value: Number(w.price) || 0, flag: w.is_charged ? undefined : '(Aberto)',
+          sub: withObs(formatDate(w.date), w.observations), value: Number(w.price) || 0, flag: w.is_charged ? undefined : '(Aberto)',
         })));
         setTotal(r.total || 0);
       }
@@ -105,10 +113,13 @@ export default function ReportsScreen() {
       {
         text: 'Confirmar', onPress: async () => {
           try {
-            await Promise.all(openItems.map((w) => api.patch(`/washes/${w.id}/charge`)));
-            Alert.alert('Pronto', 'Recebimentos baixados.');
+            // Baixa em lote num único pedido — evita ficar meio baixado se cair a rede.
+            await api.post('/washes/settle', { ids: openItems.map((w) => w.id) });
+            Alert.alert('Pronto', 'Recebimentos baixados. O card "A receber" já reflete a baixa.');
             run();
-          } catch { Alert.alert('Erro', 'Falha ao baixar alguns lançamentos.'); }
+          } catch (e) {
+            Alert.alert('Erro', e instanceof ApiError ? e.message : 'Falha ao baixar alguns lançamentos.');
+          }
         },
       },
     ]);

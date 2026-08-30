@@ -47,12 +47,14 @@ router.post(
 
     const { rows } = await query(
       `INSERT INTO documents
-         (owner_id, kind, number, client_name, vehicle_info, items, total, payment_type, observations)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+         (owner_id, kind, number, client_name, vehicle_info, items, total, payment_type, observations,
+          client_phone, client_document)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
       [
         req.owner.id, kind, number, b.client_name || null, b.vehicle_info || null,
         JSON.stringify(Array.isArray(b.items) ? b.items : []), Number(b.total) || 0,
         b.payment_type || null, b.observations || null,
+        b.client_phone || null, b.client_document || null,
       ]
     );
     return ok(res, rows[0], kind === 'quote' ? 'Orçamento registrado.' : 'Recibo registrado.', 201);

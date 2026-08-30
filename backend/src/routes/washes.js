@@ -31,7 +31,8 @@ router.get(
 
     const order = q.pickup ? 'w.date ASC' : 'w.date DESC';
     const { rows } = await query(
-      `SELECT w.*, c.allow_credit AS client_allow_credit, c.phone AS client_phone
+      `SELECT w.*, c.allow_credit AS client_allow_credit, c.phone AS client_phone,
+              c.document AS client_document
          FROM washes w
          LEFT JOIN clients c ON c.id = w.client_id
         WHERE ${where} ORDER BY ${order} LIMIT 1000`,

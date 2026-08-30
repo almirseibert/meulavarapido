@@ -6,15 +6,15 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import {
   Building2, Wrench, Crown, Upload, MessageSquareHeart, LogOut, X, Trash2, ChevronRight, Truck,
-  BarChart3, PhoneCall, HardHat, PackageOpen, Lock,
+  BarChart3, PhoneCall, HardHat, PackageOpen, Lock, Pencil, Megaphone, History,
 } from 'lucide-react-native';
 import { Button, Input, Card } from '@/components/ui';
 import { LogoMark } from '@/components/Logo';
 import { api, unwrap, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/stores/auth';
 import { useApp } from '@/lib/stores/app';
-import { formatCurrency } from '@/lib/utils';
-import type { Company, Service } from '@/lib/types';
+import { formatCurrency, formatDate, parseDateTime, toDateInput } from '@/lib/utils';
+import type { Company, Service, ServicePrice } from '@/lib/types';
 
 export default function SettingsScreen() {
   const owner = useAuth((s) => s.owner);
@@ -22,6 +22,14 @@ export default function SettingsScreen() {
   const [companyOpen, setCompanyOpen] = useState(false);
   const [servicesOpen, setServicesOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
+  // Só o administrador do app (ADMIN_EMAILS no servidor) vê a central de novidades.
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  React.useEffect(() => {
+    unwrap<{ is_admin: boolean }>(api.get('/admin/me'))
+      .then((r) => setIsAdmin(!!r?.is_admin))
+      .catch(() => setIsAdmin(false));
+  }, []);
 
   function Row({ icon, title, subtitle, onPress }: { icon: React.ReactNode; title: string; subtitle?: string; onPress: () => void }) {
     return (
@@ -76,6 +84,10 @@ export default function SettingsScreen() {
           <Row icon={<Upload color="#0891b2" size={20} />} title="Importar backup (JSON)" subtitle="Migre os dados do app antigo para a nuvem" onPress={importBackup} />
         ) : (
           <Row icon={<Lock color="#94a3b8" size={20} />} title="Importar backup (JSON)" subtitle="Disponível no Premium" onPress={() => router.push('/premium')} />
+        )}
+        {isAdmin && (
+          <Row icon={<Megaphone color="#0891b2" size={20} />} title="Novidades e promoções"
+            subtitle="Enviar avisos push para os usuários do app" onPress={() => router.push('/(app)/broadcast' as any)} />
         )}
         <Row icon={<MessageSquareHeart color="#0891b2" size={20} />} title="Contate o desenvolvedor" subtitle="Elogios, sugestões e melhorias" onPress={() => setContactOpen(true)} />
 
@@ -162,14 +174,20 @@ function ServicesModal({ visible, onClose }: { visible: boolean; onClose: () => 
   const { services, loadServices } = useApp();
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
+  const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState<Service | null>(null);
 
   async function add() {
-    if (!name.trim()) return;
+    if (!name.trim()) return Alert.alert('Atenção', 'Informe o nome do serviço.');
     setSaving(true);
     try {
-      await api.post('/services', { name, price: Number(price.replace(',', '.')) || 0 });
-      setName(''); setPrice('');
+      await api.post('/services', {
+        name,
+        price: Number(price.replace(',', '.')) || 0,
+        description: description.trim() || null,
+      });
+      setName(''); setPrice(''); setDescription('');
       await loadServices();
     } catch (e) {
       Alert.alert('Erro', e instanceof ApiError ? e.message : 'Não foi possível adicionar.');
@@ -178,23 +196,14 @@ function ServicesModal({ visible, onClose }: { visible: boolean; onClose: () => 
     }
   }
 
-  async function remove(s: Service) {
-    await api.delete(`/services/${s.id}`);
-    loadServices();
-  }
-
-  async function editPrice(s: Service) {
-    Alert.prompt?.(
-      'Editar preço',
-      s.name,
-      async (text) => {
-        if (text == null) return;
-        await api.put(`/services/${s.id}`, { price: Number(text.replace(',', '.')) || 0 });
+  function remove(s: Service) {
+    Alert.alert('Remover serviço', `Excluir "${s.name}"?`, [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Remover', style: 'destructive', onPress: async () => {
+        await api.delete(`/services/${s.id}`);
         loadServices();
-      },
-      'plain-text',
-      String(s.price)
-    );
+      } },
+    ]);
   }
 
   return (
@@ -208,21 +217,154 @@ function ServicesModal({ visible, onClose }: { visible: boolean; onClose: () => 
           <Card className="mb-3">
             <Input label="Serviço" value={name} onChangeText={setName} placeholder="Ex.: Lavagem completa" />
             <Input label="Preço" value={price} onChangeText={setPrice} keyboardType="decimal-pad" placeholder="0,00" />
+            <Input label="Descrição (opcional)" value={description} onChangeText={setDescription} multiline
+              style={{ height: 70, textAlignVertical: 'top' }}
+              placeholder="Ex.: Lavagem externa, aspiração interna e pretinho nos pneus." />
+            <Text className="text-muted text-xs mb-2">
+              A descrição vai automaticamente para o recibo e o orçamento como detalhamento do serviço.
+            </Text>
             <Button title="Adicionar serviço" onPress={add} loading={saving} variant="ghost" />
           </Card>
 
           {services.map((s) => (
-            <View key={s.id} className="flex-row items-center bg-white rounded-2xl p-4 border border-line mb-2">
-              <View className="flex-1">
-                <Text className="text-ink font-semibold">{s.name}</Text>
-                <Pressable onPress={() => editPrice(s)}>
-                  <Text className="text-brand-700 font-bold mt-0.5">{formatCurrency(s.price)} · editar</Text>
+            <View key={s.id} className="bg-white rounded-2xl p-4 border border-line mb-2">
+              <View className="flex-row items-center">
+                <View className="flex-1 pr-2">
+                  <Text className="text-ink font-semibold">{s.name}</Text>
+                  <Text className="text-brand-700 font-bold mt-0.5">{formatCurrency(s.price)}</Text>
+                  {s.description ? <Text className="text-muted text-xs mt-1">{s.description}</Text> : null}
+                </View>
+                <Pressable onPress={() => setEditing(s)} className="bg-slate-100 p-2 rounded-xl mr-1">
+                  <Pencil color="#475569" size={16} />
+                </Pressable>
+                <Pressable onPress={() => remove(s)} className="bg-red-50 p-2 rounded-xl">
+                  <Trash2 color="#dc2626" size={16} />
                 </Pressable>
               </View>
-              <Pressable onPress={() => remove(s)} className="bg-red-50 p-2 rounded-xl"><Trash2 color="#dc2626" size={16} /></Pressable>
             </View>
           ))}
           {services.length === 0 && <Text className="text-muted text-center mt-4">Nenhum serviço cadastrado ainda.</Text>}
+        </ScrollView>
+
+        <ServiceEditModal
+          service={editing}
+          onClose={() => setEditing(null)}
+          onSaved={async () => { setEditing(null); await loadServices(); }}
+        />
+      </SafeAreaView>
+    </Modal>
+  );
+}
+
+// Edição do serviço. Trocar o preço abre uma NOVA vigência a partir da data
+// informada: lavagens anteriores continuam com o valor praticado na época
+// (elas guardam o preço no próprio lançamento) e as novas usam o valor novo.
+function ServiceEditModal({
+  service, onClose, onSaved,
+}: { service: Service | null; onClose: () => void; onSaved: () => void }) {
+  const [name, setName] = useState('');
+  const [price, setPrice] = useState('');
+  const [description, setDescription] = useState('');
+  const [fromStr, setFromStr] = useState('');
+  const [history, setHistory] = useState<ServicePrice[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  React.useEffect(() => {
+    if (!service) return;
+    setName(service.name);
+    setPrice(String(service.price));
+    setDescription(service.description || '');
+    setFromStr(toDateInput(new Date()));
+    setShowHistory(false);
+    setHistory([]);
+    unwrap<ServicePrice[]>(api.get(`/services/${service.id}/prices`))
+      .then((r) => setHistory(Array.isArray(r) ? r : []))
+      .catch(() => setHistory([]));
+  }, [service]);
+
+  const priceChanged = !!service && Number(price.replace(',', '.')) !== Number(service.price);
+
+  async function save() {
+    if (!service) return;
+    if (!name.trim()) return Alert.alert('Atenção', 'Informe o nome do serviço.');
+    const value = Number(price.replace(',', '.'));
+    if (isNaN(value) || value < 0) return Alert.alert('Atenção', 'Informe um preço válido.');
+
+    let validFrom: string | null = null;
+    if (priceChanged && fromStr) {
+      const d = parseDateTime(fromStr, '00:00');
+      if (!d) return Alert.alert('Atenção', 'Data de vigência inválida. Use DD/MM/AAAA.');
+      validFrom = d.toISOString();
+    }
+
+    setSaving(true);
+    try {
+      await api.put(`/services/${service.id}`, {
+        name: name.trim(),
+        price: value,
+        description: description.trim() || null,
+        valid_from: validFrom,
+      });
+      onSaved();
+    } catch (e) {
+      Alert.alert('Erro', e instanceof ApiError ? e.message : 'Não foi possível salvar.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal visible={!!service} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <SafeAreaView className="flex-1 bg-bg">
+        <View className="flex-row items-center justify-between px-4 py-3 border-b border-line">
+          <Text className="text-lg font-bold text-ink">Editar serviço</Text>
+          <Pressable onPress={onClose}><X color="#0f172a" size={24} /></Pressable>
+        </View>
+        <ScrollView contentContainerStyle={{ padding: 16 }}>
+          <Input label="Nome do serviço" value={name} onChangeText={setName} />
+          <Input label="Preço" value={price} onChangeText={setPrice} keyboardType="decimal-pad" placeholder="0,00" />
+
+          {priceChanged && (
+            <>
+              <Input label="Novo valor vale a partir de" value={fromStr} onChangeText={setFromStr}
+                placeholder="DD/MM/AAAA" keyboardType="numbers-and-punctuation" />
+              <Text className="text-muted text-xs mb-3">
+                Lavagens lançadas antes desta data continuam com {formatCurrency(service?.price ?? 0)}.
+                A partir dela, o serviço passa a valer {formatCurrency(Number(price.replace(',', '.')) || 0)}.
+              </Text>
+            </>
+          )}
+
+          <Input label="Descrição do serviço" value={description} onChangeText={setDescription} multiline
+            style={{ height: 90, textAlignVertical: 'top' }}
+            placeholder="Ex.: Lavagem externa, aspiração interna e pretinho nos pneus." />
+          <Text className="text-muted text-xs mb-3">
+            Usada como detalhamento automático em recibos e orçamentos.
+          </Text>
+
+          <Pressable onPress={() => setShowHistory((v) => !v)} className="flex-row items-center mb-2">
+            <History color="#0891b2" size={16} />
+            <Text className="text-brand-700 font-medium ml-1.5">
+              {showHistory ? 'Ocultar' : 'Ver'} histórico de preços ({history.length})
+            </Text>
+          </Pressable>
+          {showHistory && (
+            <Card className="mb-3">
+              {history.length === 0 ? (
+                <Text className="text-muted text-sm">Nenhuma alteração registrada.</Text>
+              ) : (
+                history.map((h, i) => (
+                  <View key={h.id} className={`flex-row justify-between py-1.5 ${i ? 'border-t border-line' : ''}`}>
+                    <Text className="text-muted text-sm">desde {formatDate(h.valid_from)}</Text>
+                    <Text className="text-ink font-semibold text-sm">{formatCurrency(h.price)}</Text>
+                  </View>
+                ))
+              )}
+            </Card>
+          )}
+
+          <Button title="Salvar alterações" onPress={save} loading={saving} />
         </ScrollView>
       </SafeAreaView>
     </Modal>

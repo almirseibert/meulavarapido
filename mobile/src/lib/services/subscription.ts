@@ -51,7 +51,11 @@ export async function configurePurchases(ownerId: string) {
       : process.env.EXPO_PUBLIC_RC_ANDROID_KEY;
   if (!key) return; // sem chave -> fica no modo manual
   try {
-    Purchases.configure({ apiKey: key, appUserID: ownerId });
+    // shouldShowInAppMessagesAutomatically:false evita o RevenueCat conectar ao
+    // billing do Google Play no configure (gera erro BILLING_UNAVAILABLE em
+    // emulador/dispositivo sem conta Play). Mensagens da loja podem ser exibidas
+    // manualmente quando necessário.
+    Purchases.configure({ apiKey: key, appUserID: ownerId, shouldShowInAppMessagesAutomatically: false });
     configured = true;
   } catch {
     /* silencioso */

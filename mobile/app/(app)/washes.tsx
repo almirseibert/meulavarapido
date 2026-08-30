@@ -92,17 +92,24 @@ export default function WashesScreen() {
       return Alert.alert('Cadastro incompleto', 'Preencha os dados da lavagem em Ajustes antes de emitir recibos.');
     }
     try {
-      const its = (w.services || []).map((s) => ({ name: s.name, price: Number(s.price) || 0 }));
-      if (!its.length) its.push({ name: 'Serviço de lavagem', price: w.price });
+      const its = (w.services || []).map((s) => ({
+        name: s.name,
+        price: Number(s.price) || 0,
+        // Descrição gravada na lavagem; se faltar (lançamento antigo), busca no serviço atual.
+        description: s.description || services.find((x) => x.id === s.id)?.description || undefined,
+      }));
+      if (!its.length) its.push({ name: 'Serviço de lavagem', price: w.price, description: undefined });
       const doc = await unwrap<any>(
         api.post('/documents', {
           kind: 'receipt', client_name: w.client_name, vehicle_info: w.vehicle_info,
-          items: its, total: w.price, payment_type: w.payment_type,
+          client_phone: w.client_phone, client_document: w.client_document,
+          items: its, total: w.price, payment_type: w.payment_type, observations: w.observations,
         })
       );
       await generateAndShare(company, {
         kind: 'receipt', number: doc.number, clientName: w.client_name, vehicleInfo: w.vehicle_info,
-        items: its, total: w.price, paymentType: w.payment_type, date: w.date,
+        clientPhone: w.client_phone || undefined, clientDocument: w.client_document || undefined,
+        items: its, total: w.price, paymentType: w.payment_type, observations: w.observations, date: w.date,
       });
     } catch (e) {
       Alert.alert('Erro', e instanceof ApiError ? e.message : 'Não foi possível emitir o recibo.');
@@ -270,7 +277,8 @@ function WashFormModal({
       setSel({
         client_id: wash.client_id || null, vehicle_id: wash.vehicle_id || null,
         client_name: wash.client_name || '', vehicle_info: wash.vehicle_info || '',
-        phone: wash.client_phone || null, allow_credit: wash.client_allow_credit,
+        phone: wash.client_phone || null, document: wash.client_document || null,
+        allow_credit: wash.client_allow_credit,
       });
       const init: Record<string, boolean> = {};
       (wash.services || []).forEach((s) => { if (s.id) init[s.id] = true; });
@@ -286,7 +294,12 @@ function WashFormModal({
       setObs(wash.observations || '');
     } else {
       setSel(EMPTY_SELECTION); setSelected({}); setManualPrice(''); setPayment('Dinheiro');
-      setDateStr(''); setTimeStr(''); setPickup(false); setPickupAddress(''); setPickupFee('');
+      // Nova lavagem já vem com data/hora de agora — é só trocar a data quando o
+      // lançamento for de um dia anterior que ficou esquecido.
+      const now = new Date();
+      setDateStr(toDateInput(now));
+      setTimeStr(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`);
+      setPickup(false); setPickupAddress(''); setPickupFee('');
       setObs('');
     }
   }, [visible, wash]);
@@ -305,7 +318,9 @@ function WashFormModal({
         client_name: sel.client_name || null, vehicle_info: sel.vehicle_info || null,
         price: total, payment_type: payment,
         is_charged: payment !== 'Faturamento Posterior',
-        services: chosen.map((s) => ({ id: s.id, name: s.name, price: Number(s.price) })),
+        services: chosen.map((s) => ({
+          id: s.id, name: s.name, price: Number(s.price), description: s.description || null,
+        })),
         observations: obs.trim() || null,
         pickup, pickup_address: pickup ? pickupAddress || sel.address || null : null,
         pickup_fee: fee, pickup_status: pickup ? (wash?.pickup_status || 'a_buscar') : null,
@@ -353,12 +368,22 @@ function WashFormModal({
           <Input label="Valor total (deixe vazio p/ somar serviços)" value={manualPrice} onChangeText={setManualPrice}
             keyboardType="decimal-pad" placeholder={formatCurrency(total)} />
 
-          {wash && (
-            <View className="flex-row gap-3">
-              <View className="flex-1"><Input label="Data" value={dateStr} onChangeText={setDateStr} placeholder="DD/MM/AAAA" keyboardType="numbers-and-punctuation" /></View>
-              <View className="w-28"><Input label="Hora" value={timeStr} onChangeText={setTimeStr} placeholder="HH:MM" keyboardType="numbers-and-punctuation" /></View>
-            </View>
-          )}
+          <Text className="text-muted font-medium mb-1 text-sm">Data da lavagem</Text>
+          <View className="flex-row gap-3">
+            <View className="flex-1"><Input label="Data" value={dateStr} onChangeText={setDateStr} placeholder="DD/MM/AAAA" keyboardType="numbers-and-punctuation" /></View>
+            <View className="w-28"><Input label="Hora" value={timeStr} onChangeText={setTimeStr} placeholder="HH:MM" keyboardType="numbers-and-punctuation" /></View>
+          </View>
+          <View className="flex-row flex-wrap gap-2 mb-3">
+            {[['Hoje', 0], ['Ontem', 1], ['Anteontem', 2]].map(([label, back]) => (
+              <Pressable key={String(label)} onPress={() => {
+                const d = new Date();
+                d.setDate(d.getDate() - Number(back));
+                setDateStr(toDateInput(d));
+              }} className="px-3 py-1.5 rounded-full bg-brand-50">
+                <Text className="text-brand-700 text-xs font-semibold">{label}</Text>
+              </Pressable>
+            ))}
+          </View>
 
           <Text className="text-muted font-medium mb-2 text-sm">Forma de pagamento</Text>
           <View className="flex-row flex-wrap gap-2 mb-4">
@@ -439,7 +464,6 @@ function FilterModal({
             <View className="flex-1"><Input label="Até" value={f.toStr} onChangeText={(t) => setF((p) => ({ ...p, toStr: t }))} placeholder="DD/MM/AAAA" keyboardType="numbers-and-punctuation" /></View>
           </View>
 
-          <Text className="text-muted font-medium mb-2 text-sm">Cliente / veículo</Text>
           <ClientVehiclePicker
             value={{ ...EMPTY_SELECTION, client_id: f.client_id, vehicle_id: f.vehicle_id, client_name: f.client_name }}
             onChange={(s) => setF((p) => ({ ...p, client_id: s.client_id, vehicle_id: s.vehicle_id, client_name: s.client_name }))}

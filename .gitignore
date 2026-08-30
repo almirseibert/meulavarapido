@@ -2,3 +2,7 @@
 # builds locais (nao versionar)
 *.apk
 *.aab
+
+# Segredos - NUNCA versionar
+*-firebase-adminsdk-*.json
+.env

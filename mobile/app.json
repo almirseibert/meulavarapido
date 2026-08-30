@@ -36,6 +36,12 @@
           "backgroundColor": "#0B4F6C"
         }
       ],
+      [
+        "expo-notifications",
+        {
+          "color": "#0B4F6C"
+        }
+      ],
       "@react-native-firebase/app",
       "@react-native-firebase/auth",
       [
