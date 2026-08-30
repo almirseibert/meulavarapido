@@ -12,12 +12,22 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://meu-lava-rapido-producao-backend.oehpg2.easypanel.host",
+        "EXPO_PUBLIC_ENV": "production",
+        "EXPO_PUBLIC_RC_ANDROID_KEY": "goog_RPdXIWRFrqtcnCnSQryetCefGAN"
       }
     },
     "production": {
       "autoIncrement": true,
       "android": {
         "buildType": "app-bundle"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://meu-lava-rapido-producao-backend.oehpg2.easypanel.host",
+        "EXPO_PUBLIC_ENV": "production",
+        "EXPO_PUBLIC_RC_ANDROID_KEY": "goog_RPdXIWRFrqtcnCnSQryetCefGAN"
       }
     }
   },
