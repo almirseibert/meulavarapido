@@ -3,7 +3,7 @@
 **Última atualização:** 27 de junho de 2026
 
 Esta Política de Privacidade descreve como o aplicativo **Meu Lava Rápido**
-("aplicativo", "nós"), desenvolvido por **Mak Serviços**, coleta, usa e protege
+("aplicativo", "nós"), desenvolvido por **Studio Mythos**, coleta, usa e protege
 as informações dos usuários.
 
 > ⚠️ Modelo base. Revise com cuidado e, se possível, com apoio jurídico, antes de
@@ -64,7 +64,7 @@ exclusão da sua conta, entrando em contato pelo e-mail abaixo.
 ## 8. Exclusão de conta e dados
 
 Para excluir sua conta e os dados associados, envie um pedido para
-**tecnologia@makservicos.com**. [Recomendado: também oferecer a exclusão dentro do
+**almir.seibert@gmail.com**. [Recomendado: também oferecer a exclusão dentro do
 app, em Configurações.]
 
 ## 9. Crianças
@@ -78,5 +78,5 @@ Podemos atualizar esta política periodicamente. A data no topo indica a última
 
 ## 11. Contato
 
-**Mak Serviços** — E-mail: tecnologia@makservicos.com
+**Studio Mythos** — E-mail: almir.seibert@gmail.com
 [Endereço/CNPJ, se desejar incluir.]

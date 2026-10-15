@@ -371,11 +371,23 @@ function ServiceEditModal({
   );
 }
 
+interface DevContact { name?: string; email?: string; whatsapp?: string }
+
 function ContactModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const [kind, setKind] = useState('elogio');
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
   const [saving, setSaving] = useState(false);
+  // O contato do desenvolvedor vem do servidor (SUPPORT_* no backend), nunca
+  // fixo na build: assim pode mudar sem publicar nova versao do app.
+  const [contact, setContact] = useState<DevContact>({});
+
+  React.useEffect(() => {
+    if (!visible) return;
+    unwrap<DevContact>(api.get('/support/contact'))
+      .then((c) => setContact(c || {}))
+      .catch(() => setContact({}));
+  }, [visible]);
 
   async function send() {
     if (!message.trim()) return Alert.alert('Atenção', 'Escreva sua mensagem.');
@@ -418,9 +430,11 @@ function ContactModal({ visible, onClose }: { visible: boolean; onClose: () => v
           <Input label="Assunto" value={subject} onChangeText={setSubject} placeholder="Resumo" />
           <Input label="Mensagem" value={message} onChangeText={setMessage} placeholder="Escreva aqui..." multiline style={{ height: 140, textAlignVertical: 'top' }} />
           <Button title="Enviar" onPress={send} loading={saving} />
-          <Pressable onPress={() => Linking.openURL('mailto:tecnologia@makservicos.com')} className="mt-4">
-            <Text className="text-center text-brand-700">Ou envie um e-mail: tecnologia@makservicos.com</Text>
-          </Pressable>
+          {contact.email ? (
+            <Pressable onPress={() => Linking.openURL(`mailto:${contact.email}`)} className="mt-4">
+              <Text className="text-center text-brand-700">Ou envie um e-mail: {contact.email}</Text>
+            </Pressable>
+          ) : null}
         </ScrollView>
       </SafeAreaView>
     </Modal>

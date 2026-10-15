@@ -4,9 +4,13 @@ const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
 
+// Contato do desenvolvedor exibido no app. Vem SEMPRE do ambiente
+// (SUPPORT_NAME / SUPPORT_EMAIL / SUPPORT_WHATSAPP): sem e-mail hardcoded aqui,
+// para trocar o contato sem publicar nova versão do app. Campos não definidos
+// voltam vazios e o app simplesmente não exibe o link correspondente.
 const DEV_CONTACT = {
-  name: 'Mak Serviços — Desenvolvimento',
-  email: process.env.SUPPORT_EMAIL || 'tecnologia@makservicos.com',
+  name: process.env.SUPPORT_NAME || 'Studio Mythos',
+  email: process.env.SUPPORT_EMAIL || '',
   whatsapp: process.env.SUPPORT_WHATSAPP || '',
 };
 
@@ -29,7 +33,7 @@ router.post(
     if (!message) return fail(res, 'Escreva sua mensagem.');
 
     console.log('[suporte] %s | owner=%s | %s | %s', kind, req.owner.id, subject, message);
-    // TODO (fase 2): enviar e-mail para DEV_CONTACT.email ou gravar em tabela 'support_messages'.
+    // TODO (fase 2): gravar em tabela 'support_messages' (hoje a mensagem só vai para o log).
 
     return ok(res, { contact: DEV_CONTACT }, 'Mensagem enviada ao desenvolvedor. Obrigado!');
   })

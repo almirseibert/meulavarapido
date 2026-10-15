@@ -119,8 +119,8 @@ Primeira versão do Meu Lava Rápido! 🎉
 
 | Campo | Valor |
 |---|---|
-| E-mail de contato | tecnologia@makservicos.com |
-| Site (opcional) | (coloque o site da Mak Serviços, se houver) |
+| E-mail de contato | almir.seibert@gmail.com |
+| Site (opcional) | (coloque o site do desenvolvedor, se houver) |
 | Telefone (opcional) | (opcional) |
 
 ---
@@ -131,7 +131,7 @@ Você **precisa** de um link público com a política de privacidade. Há um mod
 em `POLITICA_PRIVACIDADE.md` (nesta mesma pasta). Publique-o em uma URL pública
 (ex.: GitHub Pages, site da empresa, Google Sites) e cole o link no Play Console.
 
-Exemplo de URL: `https://makservicos.com/meulavarapido/privacidade`
+Exemplo de URL: `https://<seu-usuario>.github.io/meulavarapido/privacidade`
 
 ---
 

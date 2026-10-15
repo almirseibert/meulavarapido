@@ -45,7 +45,7 @@ Feito sob medida para este projeto (Expo + EAS). Siga na ordem.
 
 Dados já configurados neste projeto (não precisa mudar):
 - **Nome:** Meu Lava Rápido
-- **Package / ID do app:** `com.makservicos.meulavarapido`
+- **Package / ID do app:** `com.studiomythos.meulavarapido`
 - **Versão:** `1.0.0`
 - **Assinatura/versionCode:** gerenciados pelo EAS (`appVersionSource: remote`, `autoIncrement: true`)
 
@@ -219,7 +219,7 @@ revisor da Google conseguir entrar. Crie uma conta de teste com dados de exemplo
 
 ### 6.4 Classificação de conteúdo (IARC)
 Responda ao questionário. Para um app de **gestão/negócios** sem conteúdo sensível, o
-resultado costuma ser **Livre / 3+**. Informe o e-mail `tecnologia@makservicos.com`.
+resultado costuma ser **Livre / 3+**. Informe o e-mail `almir.seibert@gmail.com`.
 
 ### 6.5 Público-alvo e conteúdo
 Selecione faixa etária **adulta** (18+) — é um app profissional, **não** direcionado a
@@ -237,7 +237,7 @@ Declare o que o app coleta. Com base no projeto:
 ### 6.7 Categoria e detalhes de contato
 Menu **Crescer → Presença na loja → Configurações da ficha**:
 - **Categoria do app:** Negócios (ou Produtividade)
-- **E-mail de contato:** `tecnologia@makservicos.com`
+- **E-mail de contato:** `almir.seibert@gmail.com`
 - (Opcional) site e telefone.
 
 ---
