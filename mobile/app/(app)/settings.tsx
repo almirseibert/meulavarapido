@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable, Modal, Alert, Linking } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { View, Text, ScrollView, Pressable, Modal, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import {
   Building2, Wrench, Crown, Upload, MessageSquareHeart, LogOut, X, Trash2, ChevronRight, Truck,
-  BarChart3, PhoneCall, HardHat, PackageOpen, Lock, Pencil, Megaphone, History,
+  BarChart3, PhoneCall, HardHat, PackageOpen, Lock, Pencil, Megaphone, History, Inbox,
 } from 'lucide-react-native';
 import { Button, Input, Card } from '@/components/ui';
 import { LogoMark } from '@/components/Logo';
@@ -22,14 +22,20 @@ export default function SettingsScreen() {
   const [companyOpen, setCompanyOpen] = useState(false);
   const [servicesOpen, setServicesOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
-  // Só o administrador do app (ADMIN_EMAILS no servidor) vê a central de novidades.
+  // Só o administrador do app (ADMIN_EMAILS no servidor) vê a central de
+  // novidades e a caixa de mensagens dos usuários.
   const [isAdmin, setIsAdmin] = useState(false);
+  const [unreadSupport, setUnreadSupport] = useState(0);
 
-  React.useEffect(() => {
-    unwrap<{ is_admin: boolean }>(api.get('/admin/me'))
-      .then((r) => setIsAdmin(!!r?.is_admin))
-      .catch(() => setIsAdmin(false));
-  }, []);
+  // useFocusEffect em vez de useEffect: ao voltar da caixa de entrada o
+  // contador de não lidas precisa estar atualizado.
+  useFocusEffect(
+    useCallback(() => {
+      unwrap<{ is_admin: boolean; unread_support?: number }>(api.get('/admin/me'))
+        .then((r) => { setIsAdmin(!!r?.is_admin); setUnreadSupport(r?.unread_support ?? 0); })
+        .catch(() => { setIsAdmin(false); setUnreadSupport(0); });
+    }, [])
+  );
 
   function Row({ icon, title, subtitle, onPress }: { icon: React.ReactNode; title: string; subtitle?: string; onPress: () => void }) {
     return (
@@ -86,8 +92,13 @@ export default function SettingsScreen() {
           <Row icon={<Lock color="#94a3b8" size={20} />} title="Importar backup (JSON)" subtitle="Disponível no Premium" onPress={() => router.push('/premium')} />
         )}
         {isAdmin && (
-          <Row icon={<Megaphone color="#0891b2" size={20} />} title="Novidades e promoções"
-            subtitle="Enviar avisos push para os usuários do app" onPress={() => router.push('/(app)/broadcast' as any)} />
+          <>
+            <Row icon={<Megaphone color="#0891b2" size={20} />} title="Novidades e promoções"
+              subtitle="Enviar avisos push para os usuários do app" onPress={() => router.push('/(app)/broadcast' as any)} />
+            <Row icon={<Inbox color="#0891b2" size={20} />} title="Mensagens recebidas"
+              subtitle={unreadSupport ? `${unreadSupport} não lida(s)` : 'Elogios, sugestões e problemas enviados pelos usuários'}
+              onPress={() => router.push('/(app)/support-inbox' as any)} />
+          </>
         )}
         <Row icon={<MessageSquareHeart color="#0891b2" size={20} />} title="Contate o desenvolvedor" subtitle="Elogios, sugestões e melhorias" onPress={() => setContactOpen(true)} />
 
@@ -371,29 +382,20 @@ function ServiceEditModal({
   );
 }
 
-interface DevContact { name?: string; email?: string; whatsapp?: string }
-
+// O formulário é o único canal de contato: a mensagem vai para a caixa de
+// entrada do administrador (tabela support_messages) e o aparelho dele recebe
+// um push. Nenhum e-mail de contato é exibido aqui.
 function ContactModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const [kind, setKind] = useState('elogio');
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
   const [saving, setSaving] = useState(false);
-  // O contato do desenvolvedor vem do servidor (SUPPORT_* no backend), nunca
-  // fixo na build: assim pode mudar sem publicar nova versao do app.
-  const [contact, setContact] = useState<DevContact>({});
-
-  React.useEffect(() => {
-    if (!visible) return;
-    unwrap<DevContact>(api.get('/support/contact'))
-      .then((c) => setContact(c || {}))
-      .catch(() => setContact({}));
-  }, [visible]);
 
   async function send() {
     if (!message.trim()) return Alert.alert('Atenção', 'Escreva sua mensagem.');
     setSaving(true);
     try {
-      const res = await unwrap<any>(api.post('/support/message', { kind, subject, message }));
+      await unwrap<any>(api.post('/support/message', { kind, subject, message }));
       Alert.alert('Obrigado!', 'Sua mensagem foi enviada ao desenvolvedor.');
       setSubject(''); setMessage('');
       onClose();
@@ -430,11 +432,10 @@ function ContactModal({ visible, onClose }: { visible: boolean; onClose: () => v
           <Input label="Assunto" value={subject} onChangeText={setSubject} placeholder="Resumo" />
           <Input label="Mensagem" value={message} onChangeText={setMessage} placeholder="Escreva aqui..." multiline style={{ height: 140, textAlignVertical: 'top' }} />
           <Button title="Enviar" onPress={send} loading={saving} />
-          {contact.email ? (
-            <Pressable onPress={() => Linking.openURL(`mailto:${contact.email}`)} className="mt-4">
-              <Text className="text-center text-brand-700">Ou envie um e-mail: {contact.email}</Text>
-            </Pressable>
-          ) : null}
+          <Text className="text-muted text-xs text-center mt-4">
+            Sua mensagem chega direto para quem desenvolve o app. Se precisar de
+            retorno, responderemos pelo e-mail ou WhatsApp da sua conta.
+          </Text>
         </ScrollView>
       </SafeAreaView>
     </Modal>

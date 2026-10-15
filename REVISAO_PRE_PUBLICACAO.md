@@ -16,7 +16,7 @@
 | ✅ Resolvido | Contato Mak Serviços exposto no app e nos textos da loja | 9 |
 | 🔴 Bloqueia publicação | Exigências do Google Play (exclusão de conta, política de privacidade no app) | 2 |
 | 🟠 Alto (segurança) | Sem rate limit no login, CORS aberto, sem helmet (webhook ✅ resolvido em §7.3) | 3 |
-| 🟡 Médio | Robustez do backend (migrate silencioso, suporte sem persistência; UUID ✅ em §7.3) | 3 |
+| 🟡 Médio | Robustez do backend (migrate silencioso; suporte ✅ em §8, UUID ✅ em §7.3) | 2 |
 | 🔵 Baixo / melhoria | Documentação, iOS, chave do RevenueCat no eas.json | 5 |
 | ✅ Resolvido | Baixa de lavagens faturadas e ativação automática da assinatura (§7) | 2 |
 
@@ -199,7 +199,7 @@ erro 500 → o RevenueCat reenvia o evento indefinidamente.
 
 **Ação:** validar formato de UUID e responder 200 ("ignorado") para IDs desconhecidos.
 
-### 4.3 Mensagens de suporte só vão para o log
+### 4.3 ✅ Mensagens de suporte só vão para o log — **resolvido em §8**
 
 [backend/src/routes/support.js:33-35](backend/src/routes/support.js:33) — o `POST /support/message`
 apenas faz `console.log` e responde "Mensagem enviada ao desenvolvedor". O app confirma ao
@@ -355,3 +355,58 @@ Revisão do `.env` de produção atual:
 - `backend/src/utils/revenuecat.js` tem cobertura de teste com a API simulada (11 casos: mensal, anual, vitalícia, expirada, sem entitlement, 404, erro HTTP, sem chave) — todos passando.
 - A rota `/sync` e o webhook foram revisados e validados por sintaxe, mas **não executados** (sem dependências e sem banco). Testar em staging antes de confiar.
 - O fluxo real de compra só pode ser validado com uma **compra de teste na Play Store** (licença de teste no Play Console), em build de produção — não funciona em Expo Go.
+
+---
+
+## 8. Caixa de mensagens do desenvolvedor — 15/10/2026
+
+Removida a linha "Ou envie um e-mail..." da tela "Contate o desenvolvedor": o formulário
+passa a ser o único canal. Isso só era possível depois de resolver o item **4.3** desta
+revisão — antes, a mensagem ia apenas para `console.log` e **se perdia no restart do
+container**, enquanto o app afirmava ao usuário que ela tinha sido enviada.
+
+### 8.1 Como funciona agora
+
+1. Usuário escreve em Ajustes → "Contate o desenvolvedor".
+2. `POST /api/support/message` grava em **`support_messages`** com nome, e-mail e telefone
+   de quem escreveu **copiados** para a linha (a mensagem continua legível mesmo se a conta
+   for excluída depois, já que `owner_id` é `ON DELETE SET NULL`).
+3. Os aparelhos do administrador recebem um **push** ("Elogio de Fulano", com um trecho da
+   mensagem). A falha no push não invalida a mensagem, que já está gravada.
+4. O administrador lê em **Ajustes → "Mensagens recebidas"**, com selo de não lidas.
+
+### 8.2 Arquivos
+
+| Arquivo | O que mudou |
+|---|---|
+| [backend/db/schema.sql](backend/db/schema.sql) | Tabela `support_messages` + índices (criada sozinha no boot, o `migrate()` é idempotente) |
+| [backend/src/utils/admins.js](backend/src/utils/admins.js) | **Novo.** `adminEmails()`, `isAdmin()` e `adminPushTokens()` — antes `isAdmin` era local do `admin.js` e o `support.js` não tinha como reaproveitar |
+| [backend/src/routes/support.js](backend/src/routes/support.js) | Persiste a mensagem (com limite de 200/5000 caracteres e `kind` validado) e dispara o push |
+| [backend/src/routes/admin.js](backend/src/routes/admin.js) | `GET /admin/support-messages` (com `?only=unread`), `PATCH /:id/read`, `POST /read-all`, `DELETE /:id`. `GET /admin/me` passa a devolver `unread_support` |
+| [mobile/app/(app)/support-inbox.tsx](mobile/app/(app)/support-inbox.tsx) | **Nova tela.** Lista, filtro Todas/Não lidas, pull-to-refresh, marcar lida, excluir e **responder por e-mail ou WhatsApp** direto para quem escreveu |
+| [mobile/app/(app)/settings.tsx](mobile/app/(app)/settings.tsx) | Linha "Mensagens recebidas" (só para admin, com contador); removida a linha do e-mail e o código que buscava o contato |
+
+As rotas novas ficam **depois** do `router.use(requireAdmin)`, então só quem está em
+`ADMIN_EMAILS` acessa. `GET /admin/me` continua antes do guard, porque todo usuário logado
+precisa dele para saber se mostra as linhas de admin.
+
+### 8.3 ⚠️ Para funcionar
+
+1. **Deploy do backend** — a tabela é criada sozinha no boot.
+2. `ADMIN_EMAILS` já está correto (`almir.seibert@gmail.com`).
+3. **Build nova do app** — a tela "Mensagens recebidas" é código do cliente. As mensagens
+   começam a ser gravadas assim que o backend subir, mas só dá para lê-las no app novo.
+   Até lá, dá para consultar direto no banco:
+   ```sql
+   SELECT created_at, owner_name, owner_email, kind, subject, message
+     FROM support_messages ORDER BY created_at DESC;
+   ```
+4. Para receber o push, a conta admin precisa estar **logada no app com a permissão de
+   notificação concedida** (é o que registra o token em `push_tokens`).
+
+### 8.4 O que não foi verificado
+
+- Sem banco e sem `node_modules`: as rotas novas e a tela passaram por checagem de sintaxe,
+  não foram executadas. O SQL da tabela não foi aplicado a um Postgres real.
+- O push para o admin depende de haver token registrado — não testado ponta a ponta.
+

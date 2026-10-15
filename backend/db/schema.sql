@@ -288,3 +288,22 @@ CREATE TABLE IF NOT EXISTS broadcasts (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_broadcasts_created ON broadcasts(created_at DESC);
+
+-- ---------- Mensagens de suporte ("Contate o desenvolvedor") ----------
+-- Lidas pelo administrador (ADMIN_EMAILS) na tela "Mensagens recebidas".
+-- Nome/e-mail/telefone ficam copiados aqui de propósito: a mensagem precisa
+-- continuar legível mesmo que a conta de origem seja excluída depois.
+CREATE TABLE IF NOT EXISTS support_messages (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  owner_id    UUID REFERENCES owners(id) ON DELETE SET NULL,
+  owner_name  TEXT,
+  owner_email TEXT,
+  owner_phone TEXT,
+  kind        TEXT NOT NULL DEFAULT 'outro',  -- elogio | melhoria | bug | outro
+  subject     TEXT,
+  message     TEXT NOT NULL,
+  read_at     TIMESTAMPTZ,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_support_messages_created ON support_messages(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_support_messages_unread ON support_messages(read_at) WHERE read_at IS NULL;

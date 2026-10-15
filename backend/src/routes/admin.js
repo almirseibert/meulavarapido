@@ -3,23 +3,10 @@ const { query } = require('../db');
 const { ok, fail, wrap } = require('../utils/http');
 const { requireAuth } = require('../middleware/auth');
 const { sendPush } = require('../utils/push');
+// Administradores do app vêm de ADMIN_EMAILS (ver utils/admins.js).
+const { isAdmin } = require('../utils/admins');
 
 const router = express.Router();
-
-// Administradores do app (quem pode disparar novidades/promoções) vêm do ambiente:
-// ADMIN_EMAILS="voce@dominio.com,outro@dominio.com".
-const adminEmails = () =>
-  String(process.env.ADMIN_EMAILS || '')
-    .split(',')
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean);
-
-async function isAdmin(ownerId) {
-  const list = adminEmails();
-  if (!list.length) return false;
-  const { rows } = await query('SELECT email FROM owners WHERE id = $1', [ownerId]);
-  return !!rows.length && list.includes(String(rows[0].email).toLowerCase());
-}
 
 const requireAdmin = (req, res, next) => {
   isAdmin(req.owner.id)
@@ -33,7 +20,15 @@ router.use(requireAuth);
 // mostra o item "Central de novidades" em Ajustes.
 router.get(
   '/me',
-  wrap(async (req, res) => ok(res, { is_admin: await isAdmin(req.owner.id) }))
+  wrap(async (req, res) => {
+    const admin = await isAdmin(req.owner.id);
+    if (!admin) return ok(res, { is_admin: false, unread_support: 0 });
+    // Contador para o selo de não lidas em Ajustes.
+    const { rows } = await query(
+      'SELECT COUNT(*)::int AS c FROM support_messages WHERE read_at IS NULL'
+    );
+    return ok(res, { is_admin: true, unread_support: rows[0].c });
+  })
 );
 
 router.use(requireAdmin);
@@ -133,6 +128,67 @@ router.get(
   wrap(async (req, res) => {
     const { rows } = await query('SELECT * FROM broadcasts ORDER BY created_at DESC LIMIT 50');
     return ok(res, rows);
+  })
+);
+
+// ---------- Mensagens de suporte ("Contate o desenvolvedor") ----------
+
+// GET /api/admin/support-messages — caixa de entrada do administrador.
+// ?only=unread para ver só as não lidas.
+router.get(
+  '/support-messages',
+  wrap(async (req, res) => {
+    const onlyUnread = req.query.only === 'unread';
+    const { rows } = await query(
+      `SELECT id, owner_id, owner_name, owner_email, owner_phone,
+              kind, subject, message, read_at, created_at
+         FROM support_messages
+        ${onlyUnread ? 'WHERE read_at IS NULL' : ''}
+        ORDER BY created_at DESC
+        LIMIT 200`
+    );
+    const { rows: counts } = await query(
+      `SELECT COUNT(*)::int AS total,
+              (COUNT(*) FILTER (WHERE read_at IS NULL))::int AS unread
+         FROM support_messages`
+    );
+    return ok(res, { messages: rows, ...counts[0] });
+  })
+);
+
+// PATCH /api/admin/support-messages/:id/read — marca uma como lida (ou não lida).
+router.patch(
+  '/support-messages/:id/read',
+  wrap(async (req, res) => {
+    const read = req.body.read === undefined ? true : !!req.body.read;
+    const { rows } = await query(
+      `UPDATE support_messages SET read_at = ${read ? 'now()' : 'NULL'}
+        WHERE id = $1 RETURNING id, read_at`,
+      [req.params.id]
+    );
+    if (!rows.length) return fail(res, 'Mensagem não encontrada.', 404);
+    return ok(res, rows[0]);
+  })
+);
+
+// POST /api/admin/support-messages/read-all — marca todas como lidas.
+router.post(
+  '/support-messages/read-all',
+  wrap(async (req, res) => {
+    const { rowCount } = await query(
+      'UPDATE support_messages SET read_at = now() WHERE read_at IS NULL'
+    );
+    return ok(res, { updated: rowCount }, `${rowCount} mensagem(ns) marcada(s) como lida(s).`);
+  })
+);
+
+// DELETE /api/admin/support-messages/:id
+router.delete(
+  '/support-messages/:id',
+  wrap(async (req, res) => {
+    const { rowCount } = await query('DELETE FROM support_messages WHERE id = $1', [req.params.id]);
+    if (!rowCount) return fail(res, 'Mensagem não encontrada.', 404);
+    return ok(res, null, 'Mensagem removida.');
   })
 );
 
