@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, ScrollView, Pressable, Modal, Alert } from 'react-native';
+import { View, Text, ScrollView, Pressable, Modal, Alert, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
@@ -7,6 +7,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import {
   Building2, Wrench, Crown, Upload, MessageSquareHeart, LogOut, X, Trash2, ChevronRight, Truck,
   BarChart3, PhoneCall, HardHat, PackageOpen, Lock, Pencil, Megaphone, History, Inbox,
+  ShieldCheck, FileText as FileTextIcon, UserX,
 } from 'lucide-react-native';
 import { Button, Input, Card } from '@/components/ui';
 import { LogoMark } from '@/components/Logo';
@@ -16,12 +17,24 @@ import { useApp } from '@/lib/stores/app';
 import { formatCurrency, formatDate, parseDateTime, toDateInput } from '@/lib/utils';
 import type { Company, Service, ServicePrice } from '@/lib/types';
 
+// URLs dos documentos legais. Ficam no ambiente para poderem mudar sem nova
+// build e para a linha sumir enquanto o documento não estiver publicado.
+const PRIVACY_URL = process.env.EXPO_PUBLIC_PRIVACY_URL || '';
+const TERMS_URL = process.env.EXPO_PUBLIC_TERMS_URL || '';
+
+function openLink(url: string) {
+  Linking.openURL(url).catch(() =>
+    Alert.alert('Não foi possível abrir', 'Verifique sua conexão e tente novamente.')
+  );
+}
+
 export default function SettingsScreen() {
   const owner = useAuth((s) => s.owner);
   const logout = useAuth((s) => s.logout);
   const [companyOpen, setCompanyOpen] = useState(false);
   const [servicesOpen, setServicesOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   // Só o administrador do app (ADMIN_EMAILS no servidor) vê a central de
   // novidades e a caixa de mensagens dos usuários.
   const [isAdmin, setIsAdmin] = useState(false);
@@ -102,9 +115,28 @@ export default function SettingsScreen() {
         )}
         <Row icon={<MessageSquareHeart color="#0891b2" size={20} />} title="Contate o desenvolvedor" subtitle="Elogios, sugestões e melhorias" onPress={() => setContactOpen(true)} />
 
+        {/* Links legais. As URLs vêm do ambiente (EXPO_PUBLIC_PRIVACY_URL /
+            EXPO_PUBLIC_TERMS_URL): sem URL definida, a linha não aparece. */}
+        {PRIVACY_URL ? (
+          <Row icon={<ShieldCheck color="#0891b2" size={20} />} title="Política de privacidade"
+            subtitle="Como seus dados são usados e protegidos"
+            onPress={() => openLink(PRIVACY_URL)} />
+        ) : null}
+        {TERMS_URL ? (
+          <Row icon={<FileTextIcon color="#0891b2" size={20} />} title="Termos de uso"
+            subtitle="Condições de uso do aplicativo"
+            onPress={() => openLink(TERMS_URL)} />
+        ) : null}
+
         <Pressable onPress={() => { logout(); router.replace('/(auth)/login'); }} className="flex-row items-center justify-center mt-6 py-4">
           <LogOut color="#dc2626" size={18} />
           <Text className="text-red-600 font-semibold ml-2">Sair da conta</Text>
+        </Pressable>
+
+        {/* Exclusão de conta dentro do app — exigência da política do Google Play. */}
+        <Pressable onPress={() => setDeleteOpen(true)} className="flex-row items-center justify-center py-3">
+          <UserX color="#94a3b8" size={16} />
+          <Text className="text-muted font-semibold text-xs ml-2">Excluir minha conta</Text>
         </Pressable>
 
         <Text className="text-center text-muted text-xs mt-4">Meu Lava Rápido · v1.0.0</Text>
@@ -113,6 +145,7 @@ export default function SettingsScreen() {
       <CompanyModal visible={companyOpen} onClose={() => setCompanyOpen(false)} />
       <ServicesModal visible={servicesOpen} onClose={() => setServicesOpen(false)} />
       <ContactModal visible={contactOpen} onClose={() => setContactOpen(false)} />
+      <DeleteAccountModal visible={deleteOpen} onClose={() => setDeleteOpen(false)} />
     </SafeAreaView>
   );
 }
@@ -376,6 +409,98 @@ function ServiceEditModal({
           )}
 
           <Button title="Salvar alterações" onPress={save} loading={saving} />
+        </ScrollView>
+      </SafeAreaView>
+    </Modal>
+  );
+}
+
+/**
+ * Exclusão de conta dentro do app — exigência da política do Google Play para
+ * apps que criam conta. Pede a senha e uma confirmação explícita, porque a
+ * operação apaga clientes, lavagens, despesas e documentos sem volta.
+ */
+function DeleteAccountModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const logout = useAuth((s) => s.logout);
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  React.useEffect(() => { if (visible) setPassword(''); }, [visible]);
+
+  function confirm() {
+    if (!password) return Alert.alert('Atenção', 'Digite sua senha para confirmar.');
+    Alert.alert(
+      'Excluir a conta?',
+      'Todos os seus dados serão apagados: clientes, veículos, lavagens, ' +
+        'agendamentos, despesas, fornecedores, colaboradores e documentos. ' +
+        'Esta ação não pode ser desfeita.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Excluir tudo', style: 'destructive', onPress: remove },
+      ]
+    );
+  }
+
+  async function remove() {
+    setBusy(true);
+    try {
+      await api.delete('/auth/me', { data: { password } });
+      onClose();
+      // logout() limpa o token e desvincula o aparelho das notificações.
+      await logout();
+      router.replace('/(auth)/login');
+      Alert.alert('Conta excluída', 'Seus dados foram removidos. Obrigado por testar o app.');
+    } catch (e) {
+      Alert.alert('Não foi possível excluir', e instanceof ApiError ? e.message : 'Tente novamente.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <SafeAreaView className="flex-1 bg-bg">
+        <View className="flex-row items-center justify-between px-4 py-3 border-b border-line">
+          <Text className="text-lg font-bold text-ink">Excluir minha conta</Text>
+          <Pressable onPress={onClose}><X color="#0f172a" size={24} /></Pressable>
+        </View>
+        <ScrollView contentContainerStyle={{ padding: 16 }}>
+          <View className="bg-red-50 border border-red-200 rounded-2xl p-4 mb-4">
+            <View className="flex-row items-center mb-2">
+              <UserX color="#dc2626" size={18} />
+              <Text className="text-red-700 font-bold ml-2">Isto apaga tudo</Text>
+            </View>
+            <Text className="text-red-700 text-sm">
+              Clientes, veículos, lavagens, agendamentos, despesas, fornecedores,
+              colaboradores e documentos emitidos são removidos em definitivo.
+              Não há como recuperar depois.
+            </Text>
+          </View>
+
+          <Text className="text-muted text-sm mb-3">
+            Se você assina o Premium, cancele também a assinatura no Google Play:
+            excluir a conta aqui não cancela a cobrança da loja.
+          </Text>
+
+          <Input
+            label="Confirme sua senha"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            placeholder="Sua senha de acesso"
+          />
+
+          <Pressable
+            onPress={confirm}
+            disabled={busy}
+            className={`rounded-xl py-4 items-center mt-2 ${busy ? 'bg-red-300' : 'bg-red-600'}`}
+          >
+            <Text className="text-white font-bold">{busy ? 'Excluindo...' : 'Excluir minha conta'}</Text>
+          </Pressable>
+
+          <Pressable onPress={onClose} className="py-4">
+            <Text className="text-center text-brand-700 font-semibold">Cancelar</Text>
+          </Pressable>
         </ScrollView>
       </SafeAreaView>
     </Modal>

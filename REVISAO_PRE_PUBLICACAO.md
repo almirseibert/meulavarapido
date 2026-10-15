@@ -14,7 +14,7 @@
 | Prioridade | Assunto | Itens |
 |---|---|---|
 | ✅ Resolvido | Contato Mak Serviços exposto no app e nos textos da loja | 9 |
-| 🔴 Bloqueia publicação | Exigências do Google Play (exclusão de conta, política de privacidade no app) | 2 |
+| ✅ Resolvido | Exigências do Google Play (exclusão de conta, política no app) — §9 | 3 |
 | 🟠 Alto (segurança) | Sem rate limit no login, CORS aberto, sem helmet (webhook ✅ resolvido em §7.3) | 3 |
 | 🟡 Médio | Robustez do backend (migrate silencioso; suporte ✅ em §8, UUID ✅ em §7.3) | 2 |
 | 🔵 Baixo / melhoria | Documentação, iOS, chave do RevenueCat no eas.json | 5 |
@@ -84,7 +84,7 @@ público — nesse caso, avaliar reescrita de histórico.
 
 ---
 
-## 2. 🔴 Exigências do Google Play ainda não atendidas
+## 2. ✅ Exigências do Google Play — **resolvidas em §9**
 
 ### 2.1 Exclusão de conta dentro do app — **política obrigatória**
 
@@ -409,4 +409,75 @@ precisa dele para saber se mostra as linhas de admin.
 - Sem banco e sem `node_modules`: as rotas novas e a tela passaram por checagem de sintaxe,
   não foram executadas. O SQL da tabela não foi aplicado a um Postgres real.
 - O push para o admin depende de haver token registrado — não testado ponta a ponta.
+
+---
+
+## 9. Bloqueios do Google Play resolvidos — 15/10/2026
+
+Aplicados os itens **2.1**, **2.2** e **2.3**, que eram o que impedia o envio à loja.
+
+### 9.1 Exclusão de conta no app (item 2.1)
+
+| Onde | O quê |
+|---|---|
+| [backend/src/routes/auth.js](backend/src/routes/auth.js) | `DELETE /api/auth/me`, autenticado, **exigindo a senha atual** (mesma checagem do login). Remove a linha de `owners`; o `ON DELETE CASCADE` do schema leva junto clientes, veículos, lavagens, agendamentos, despesas, fornecedores, colaboradores, documentos, CRM, tokens de push e ajustes da empresa. |
+| [mobile/app/(app)/settings.tsx](mobile/app/(app)/settings.tsx) | "Excluir minha conta" no rodapé de Ajustes → modal com aviso em vermelho do que será apagado, campo de senha e **segunda confirmação** no alerta. Ao concluir, faz logout (que também desvincula o push) e volta para o login. |
+
+O modal avisa que **excluir a conta não cancela a assinatura** no Google Play — é um
+motivo comum de reclamação e cobrança indevida.
+
+As mensagens de suporte **não** são apagadas junto: `support_messages.owner_id` é
+`ON DELETE SET NULL` e os dados de contato ficam copiados na própria linha (§8.1), então
+o histórico sobrevive sem ficar órfão.
+
+### 9.2 Política e termos acessíveis no app (item 2.2)
+
+- Em Ajustes, linhas "Política de privacidade" e "Termos de uso", abertas com `Linking`.
+- As URLs vêm de `EXPO_PUBLIC_PRIVACY_URL` e `EXPO_PUBLIC_TERMS_URL`: **sem URL definida a
+  linha não aparece**, então nunca existe um link quebrado no app.
+- A política foi publicada como página em [docs/privacidade.html](docs/privacidade.html),
+  com [docs/index.html](docs/index.html) de capa, prontas para o GitHub Pages.
+- `EXPO_PUBLIC_PRIVACY_URL` já está preenchida nos perfis `preview` e `production` do
+  [mobile/eas.json](mobile/eas.json).
+- **Termos de uso ainda não existem como documento.** A variável fica vazia e a linha não
+  aparece — nada quebra. Não escrevi o texto porque é decisão de conteúdo/jurídica, não
+  técnica.
+
+### 9.3 Política alinhada ao app real (item 2.3)
+
+[play-store/POLITICA_PRIVACIDADE.md](play-store/POLITICA_PRIVACIDADE.md) reescrita:
+
+- **Removidas as menções a anúncios e ao identificador de publicidade** — o app não tem
+  anúncios, e declarar o que não acontece é causa comum de reprovação.
+- Removidos todos os placeholders `[ ]` e os "se aplicável": a verificação de telefone e o
+  RevenueCat **são** usados, então entraram como fato.
+- Item 8 passa a descrever a exclusão **dentro do app**, que agora existe de verdade.
+- Acrescentados: token de push entre os dados coletados, seção de notificações, menção a
+  senhas guardadas só como hash, e a lista real de terceiros (infraestrutura, Firebase,
+  Google Play/RevenueCat, Expo).
+
+> 🔵 A política continua sendo um texto redigido por mim a partir do comportamento do
+> código. Vale uma leitura jurídica antes de publicar, principalmente sobre LGPD e o papel
+> de **operador** que vocês exercem sobre os dados dos clientes finais do lava-rápido.
+
+### 9.4 ⚠️ Passos manuais que faltam
+
+1. **Ligar o GitHub Pages:** repositório → Settings → Pages → Source `Deploy from a branch`,
+   branch `main`, pasta `/docs`. A política fica em
+   `https://almirseibert.github.io/meulavarapido/privacidade.html` — que é exatamente a URL
+   já configurada no `eas.json`. **Enquanto o Pages não estiver ligado, esse link dá 404.**
+   Se o repositório for privado, o Pages exige plano pago: nesse caso publique em outro
+   lugar e ajuste a URL no `eas.json`.
+2. **Informar a URL no Play Console** em Política de Privacidade (ficha da loja).
+3. **Declarar a exclusão de conta** no Console → Segurança dos dados → "Exclusão de dados":
+   marcar que o app oferece exclusão dentro do aplicativo.
+4. **Deploy do backend** (a rota `DELETE /auth/me` é nova) e **build nova do app**.
+
+### 9.5 O que não foi verificado
+
+- Sem banco: o `DELETE /auth/me` não foi executado, e o efeito cascata foi conferido lendo o
+  schema, não rodando. **Vale testar com uma conta descartável antes de publicar** — é uma
+  operação sem volta.
+- A tela de exclusão passou por checagem de sintaxe, não foi aberta num aparelho.
+- As páginas em `docs/` não foram abertas num navegador.
 

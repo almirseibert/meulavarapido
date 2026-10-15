@@ -176,4 +176,39 @@ router.put(
   })
 );
 
+/**
+ * DELETE /api/auth/me — exclusão da conta e de todos os dados.
+ *
+ * Exigido pela política do Google Play para apps que criam conta. Pede a senha
+ * atual como confirmação (mesma checagem do login), para um aparelho destravado
+ * ou uma sessão esquecida não conseguir apagar o negócio do usuário.
+ *
+ * Basta remover a linha de `owners`: todas as tabelas filhas (clientes,
+ * veículos, lavagens, agendamentos, despesas, fornecedores, colaboradores,
+ * documentos, CRM, tokens de push e ajustes da empresa) têm
+ * ON DELETE CASCADE. As mensagens de suporte são preservadas de propósito,
+ * com owner_id virando NULL (ON DELETE SET NULL).
+ *
+ * Body: { password }
+ */
+router.delete(
+  '/me',
+  requireAuth,
+  wrap(async (req, res) => {
+    const password = req.body.password || '';
+    if (!password) return fail(res, 'Informe sua senha para confirmar a exclusão.');
+
+    const { rows } = await query('SELECT password_hash FROM owners WHERE id = $1', [req.owner.id]);
+    if (!rows.length) return fail(res, 'Conta não encontrada.', 404);
+
+    const valid = await bcrypt.compare(password, rows[0].password_hash);
+    if (!valid) return fail(res, 'Senha incorreta.', 401);
+
+    await query('DELETE FROM owners WHERE id = $1', [req.owner.id]);
+    console.log('[conta] excluída owner=%s', req.owner.id);
+
+    return ok(res, null, 'Sua conta e todos os dados foram excluídos.');
+  })
+);
+
 module.exports = router;

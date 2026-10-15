@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meu Lava Rápido</title>
+<meta name="description" content="Documentos públicos do aplicativo Meu Lava Rápido.">
+<style>
+  :root { --bg:#f8fafc; --card:#fff; --ink:#0f172a; --muted:#64748b; --brand:#0b4f6c; --accent:#0891b2; --line:#e2e8f0; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg:#0f172a; --card:#1e293b; --ink:#e2e8f0; --muted:#94a3b8; --brand:#67e8f9; --accent:#22d3ee; --line:#334155; }
+  }
+  :root[data-theme="dark"] { --bg:#0f172a; --card:#1e293b; --ink:#e2e8f0; --muted:#94a3b8; --brand:#67e8f9; --accent:#22d3ee; --line:#334155; }
+  * { box-sizing: border-box; }
+  body {
+    margin:0; background:var(--bg); color:var(--ink); line-height:1.6;
+    font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  .wrap { max-width:640px; margin:0 auto; padding:48px 16px; }
+  h1 { color:var(--brand); font-size:1.8rem; margin:0 0 4px; }
+  p.sub { color:var(--muted); margin:0 0 28px; }
+  a.card {
+    display:block; background:var(--card); border:1px solid var(--line); border-radius:14px;
+    padding:16px 18px; margin-bottom:12px; text-decoration:none; color:var(--ink);
+  }
+  a.card strong { color:var(--accent); display:block; margin-bottom:2px; }
+  a.card span { color:var(--muted); font-size:.9rem; }
+  footer { margin-top:32px; color:var(--muted); font-size:.85rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Meu Lava Rápido</h1>
+  <p class="sub">Gestão de lava-rápido e estética automotiva.</p>
+
+  <a class="card" href="privacidade.html">
+    <strong>Política de Privacidade</strong>
+    <span>Como seus dados são coletados, usados e excluídos.</span>
+  </a>
+
+  <footer>Studio Mythos · almir.seibert@gmail.com</footer>
+</div>
+</body>
+</html>
