@@ -23,6 +23,13 @@ const IS_EXPO_GO = Constants.executionEnvironment === 'storeClient';
  *  3. Preencha EXPO_PUBLIC_RC_ANDROID_KEY / EXPO_PUBLIC_RC_IOS_KEY no .env.
  *  4. Configure o webhook do RevenueCat -> POST {API}/api/subscription/webhook
  *     usando app_user_id = id do owner (definido em configure()).
+ *  5. No backend, defina REVENUECAT_API_KEY (chave SECRETA v1, "sk_...").
+ *
+ * ATIVACAO: depois de uma compra bem-sucedida o app chama
+ * POST /api/subscription/sync, que confere o entitlement direto na API do
+ * RevenueCat e libera o premium na hora. O webhook continua cuidando de
+ * renovacao/cancelamento, mas a liberacao do cliente que acabou de pagar NAO
+ * depende mais dele.
  */
 
 const ENTITLEMENT = 'premium';
@@ -73,6 +80,43 @@ export async function getPlans(): Promise<Record<string, PlanOption>> {
   return unwrap(api.get('/subscription/plans'));
 }
 
+export interface SyncResult {
+  isPremium?: boolean;
+  hasAccess?: boolean;
+  premium_until?: string | null;
+  changed?: boolean;
+}
+
+/**
+ * Pede ao backend para conferir a assinatura na API do RevenueCat e gravar o
+ * resultado na conta. É o que efetivamente troca o plano de free para premium
+ * (com o prazo mensal/anual vindo do entitlement), sem esperar o webhook.
+ *
+ * Nunca lança: a compra na loja já foi concluída e não deve "falhar" só porque
+ * a confirmação no servidor demorou. Devolve null quando não deu para confirmar.
+ */
+export async function syncSubscription(): Promise<SyncResult | null> {
+  try {
+    return await unwrap<SyncResult>(api.post('/subscription/sync'));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Tenta confirmar a assinatura no servidor algumas vezes. A loja pode levar
+ * alguns segundos para o RevenueCat registrar a compra, então uma única
+ * tentativa logo após o pagamento pode chegar cedo demais.
+ */
+async function syncWithRetry(attempts = 3, delayMs = 2000): Promise<boolean> {
+  for (let i = 0; i < attempts; i++) {
+    const r = await syncSubscription();
+    if (r?.isPremium) return true;
+    if (i < attempts - 1) await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+  return false;
+}
+
 /**
  * Inicia a compra. `plan` = 'monthly' | 'yearly'.
  * Retorna true se o usuário ficou premium.
@@ -88,7 +132,12 @@ export async function purchase(plan: 'monthly' | 'yearly'): Promise<boolean> {
           : current?.monthly ?? current?.availablePackages?.find((p: any) => /month|mensal/i.test(p.identifier));
       if (!pkg) throw new Error('Plano indisponível na loja.');
       const { customerInfo } = await Purchases.purchasePackage(pkg);
-      return !!customerInfo.entitlements.active[ENTITLEMENT];
+      const entitled = !!customerInfo.entitlements.active[ENTITLEMENT];
+      if (!entitled) return false;
+      // A loja confirmou. Agora o backend precisa registrar o premium, senão a
+      // conta continua em somente-leitura mesmo com a compra paga.
+      await syncWithRetry();
+      return true;
     } catch (e: any) {
       if (e?.userCancelled) return false;
       throw e;
@@ -107,10 +156,15 @@ export async function restore(): Promise<boolean> {
   if (loadModule() && configured) {
     try {
       const info = await Purchases.restorePurchases();
-      return !!info.entitlements.active[ENTITLEMENT];
+      if (!info.entitlements.active[ENTITLEMENT]) return false;
+      await syncWithRetry(2, 1500);
+      return true;
     } catch {
       return false;
     }
   }
-  return false;
+  // Sem o módulo nativo ainda vale perguntar ao servidor: a compra pode existir
+  // no RevenueCat (feita em outro aparelho) e só faltar refletir nesta conta.
+  const r = await syncSubscription();
+  return !!r?.isPremium;
 }

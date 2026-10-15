@@ -30,13 +30,28 @@ export default function PremiumScreen() {
     setBusy(true);
     try {
       const ok = await purchase(selected);
-      if (ok) {
-        await refresh();
-        await refreshAll();
-        Alert.alert('Bem-vindo ao Premium!', 'Tudo liberado, sem interrupções.', [
-          { text: 'Ótimo!', onPress: () => router.back() },
-        ]);
+      if (!ok) return;            // usuário cancelou na loja
+      await refresh();
+      await refreshAll();
+
+      // purchase() já pediu ao backend para confirmar a assinatura. Se mesmo
+      // assim a conta não ficou premium, o pagamento foi feito mas o servidor
+      // não conseguiu registrar — não deixar o cliente achar que perdeu o
+      // dinheiro nem que está liberado.
+      if (!useAuth.getState().owner?.isPremium) {
+        Alert.alert(
+          'Pagamento recebido',
+          'Sua compra foi aprovada pela loja, mas ainda estamos confirmando aqui. ' +
+            'Isso costuma levar alguns minutos. Se continuar assim, toque em ' +
+            '"Restaurar compra" nesta tela.',
+          [{ text: 'Entendi', onPress: () => router.back() }]
+        );
+        return;
       }
+
+      Alert.alert('Bem-vindo ao Premium!', 'Tudo liberado, sem interrupções.', [
+        { text: 'Ótimo!', onPress: () => router.back() },
+      ]);
     } catch (e: any) {
       Alert.alert('Não foi possível assinar', e?.message || 'Tente novamente.');
     } finally {
@@ -45,9 +60,23 @@ export default function PremiumScreen() {
   }
 
   async function handleRestore() {
-    const ok = await restore();
-    if (ok) { await refresh(); await refreshAll(); Alert.alert('Assinatura restaurada!'); router.back(); }
-    else Alert.alert('Nada para restaurar', 'Nenhuma assinatura ativa encontrada nesta conta de loja.');
+    setBusy(true);
+    try {
+      const ok = await restore();
+      if (!ok) {
+        return Alert.alert(
+          'Nada para restaurar',
+          'Nenhuma assinatura ativa encontrada nesta conta de loja. Confirme que você ' +
+            'está no Google Play com a mesma conta usada na compra.'
+        );
+      }
+      await refresh();
+      await refreshAll();
+      Alert.alert('Assinatura restaurada!');
+      router.back();
+    } finally {
+      setBusy(false);
+    }
   }
 
   const monthly = plans.monthly?.price ?? 49.9;

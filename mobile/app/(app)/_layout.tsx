@@ -6,7 +6,7 @@ import {
 } from 'lucide-react-native';
 import { useAuth } from '@/lib/stores/auth';
 import { useApp } from '@/lib/stores/app';
-import { configurePurchases } from '@/lib/services/subscription';
+import { configurePurchases, syncSubscription } from '@/lib/services/subscription';
 import { registerPushDevice } from '@/lib/services/notify';
 
 export default function AppLayout() {
@@ -16,12 +16,20 @@ export default function AppLayout() {
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
-    if (owner) {
-      refresh().catch(() => {});   // atualiza estado de trial/assinatura
-      refreshAll().catch(() => {});
-      configurePurchases(owner.id);
-      // Registra o aparelho para receber novidades/promoções (falha em silêncio).
-      registerPushDevice();
+    if (!owner) return;
+    refresh().catch(() => {});   // atualiza estado de trial/assinatura
+    refreshAll().catch(() => {});
+    configurePurchases(owner.id);
+    // Registra o aparelho para receber novidades/promoções (falha em silêncio).
+    registerPushDevice();
+
+    // Rede de segurança da assinatura: se o webhook do RevenueCat falhou ou
+    // atrasou, confere a compra na abertura e libera o premium. Só vale a pena
+    // para quem ainda não está premium; falha em silêncio.
+    if (!owner.isPremium) {
+      syncSubscription()
+        .then((r) => { if (r?.changed) { refresh().catch(() => {}); } })
+        .catch(() => {});
     }
   }, [owner?.id]);
 

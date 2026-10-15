@@ -9,7 +9,7 @@ import { useApp } from '@/lib/stores/app';
 import { generateAndShare } from '@/lib/services/receipt';
 import { formatCurrency, formatDate, formatTime, parseDateTime, toDateInput } from '@/lib/utils';
 import { ClientVehiclePicker, EMPTY_SELECTION, type PickerSelection } from '@/components/ClientPicker';
-import { PAYMENT_TYPES, type Wash, type Service } from '@/lib/types';
+import { PAYMENT_TYPES, FATURAMENTO_POSTERIOR, type Wash, type Service } from '@/lib/types';
 
 interface Filters {
   fromStr: string;
@@ -123,6 +123,21 @@ export default function WashesScreen() {
     ]);
   }
 
+  // Baixa individual. Antes era um api.patch(...).then(...) solto: quando o
+  // servidor recusava (ex.: 402 com o teste expirado) nada acontecia na tela e
+  // parecia que o botão não funcionava. Agora o motivo sempre aparece.
+  async function toggleCharge(w: Wash) {
+    try {
+      await api.patch(`/washes/${w.id}/charge`);
+      await load(filters);
+    } catch (e) {
+      Alert.alert(
+        'Não foi possível alterar',
+        e instanceof ApiError ? e.message : 'Tente novamente.'
+      );
+    }
+  }
+
   function settleBatch() {
     const openItems = items.filter((w) => !w.is_charged);
     if (!openItems.length) return Alert.alert('Nada a baixar', 'Não há lavagens em aberto no filtro atual.');
@@ -222,9 +237,9 @@ export default function WashesScreen() {
                           <FileDown color="#0891b2" size={15} />
                           <Text className="text-brand-700 font-semibold text-xs ml-1">Recibo</Text>
                         </Pressable>
-                        <Pressable onPress={() => api.patch(`/washes/${item.id}/charge`).then(() => load(filters))} className="flex-row items-center bg-slate-100 px-3 py-1.5 rounded-xl">
-                          <Check color="#475569" size={15} />
-                          <Text className="text-slate-600 font-semibold text-xs ml-1">{item.is_charged ? 'Pago' : 'Marcar pago'}</Text>
+                        <Pressable onPress={() => toggleCharge(item)} className={`flex-row items-center px-3 py-1.5 rounded-xl ${item.is_charged ? 'bg-slate-100' : 'bg-green-100'}`}>
+                          <Check color={item.is_charged ? '#475569' : '#15803d'} size={15} />
+                          <Text className={`font-semibold text-xs ml-1 ${item.is_charged ? 'text-slate-600' : 'text-green-700'}`}>{item.is_charged ? 'Pago' : 'Dar baixa'}</Text>
                         </Pressable>
                         <Pressable onPress={() => openEdit(item)} className="bg-slate-100 px-3 py-1.5 rounded-xl"><Pencil color="#475569" size={15} /></Pressable>
                         <Pressable onPress={() => removeWash(item.id)} className="ml-auto bg-red-50 px-3 py-1.5 rounded-xl"><Trash2 color="#dc2626" size={15} /></Pressable>
@@ -317,7 +332,14 @@ function WashFormModal({
         client_id: sel.client_id, vehicle_id: sel.vehicle_id,
         client_name: sel.client_name || null, vehicle_info: sel.vehicle_info || null,
         price: total, payment_type: payment,
-        is_charged: payment !== 'Faturamento Posterior',
+        // Numa lavagem nova, "Faturamento Posterior" nasce em aberto. Ao EDITAR,
+        // preserva a baixa já dada: antes o formulário reenviava is_charged
+        // derivado da forma de pagamento e reabria uma dívida já liquidada.
+        is_charged: !wash
+          ? payment !== FATURAMENTO_POSTERIOR
+          : (wash.payment_type || '') !== payment
+            ? payment !== FATURAMENTO_POSTERIOR
+            : wash.is_charged,
         services: chosen.map((s) => ({
           id: s.id, name: s.name, price: Number(s.price), description: s.description || null,
         })),

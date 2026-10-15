@@ -157,12 +157,16 @@ export interface AppDocument {
   created_at: string;
 }
 
+// Forma de pagamento que nasce EM ABERTO (dívida do cliente): a lavagem fica
+// com is_charged = false até a baixa. Exportada para o app não repetir a string.
+export const FATURAMENTO_POSTERIOR = 'Faturamento Posterior';
+
 export const PAYMENT_TYPES = [
   'Dinheiro',
   'Cartão de Débito',
   'Cartão de Crédito',
   'PIX',
-  'Faturamento Posterior',
+  FATURAMENTO_POSTERIOR,
 ];
 
 export const EXPENSE_TYPES = ['Produto', 'Energia', 'Água', 'Aluguel', 'Outro'];

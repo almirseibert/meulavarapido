@@ -2,8 +2,10 @@
 
 > Revisão técnica de **Meu Lava Rápido** feita em **15/10/2026** no branch `main` (commit `2fed4a6`).
 > Documento de trabalho: cada item tem arquivo, linha e ação sugerida.
-> **Atualizado em 15/10/2026:** o **item 1 (contatos da Mak Serviços) foi aplicado** — ver §1.
-> Os demais itens seguem pendentes.
+> **Atualizado em 15/10/2026:** aplicados o **item 1** (contatos da Mak Serviços, §1) e as
+> **manutenções da §7** (baixa de lavagens faturadas + ativação automática da assinatura,
+> que também resolveram os itens 3.1 e 4.2). Os demais itens seguem pendentes.
+> ⚠️ A §7.4 lista as variáveis de ambiente que **ainda precisam ser criadas no EasyPanel**.
 
 ---
 
@@ -13,9 +15,10 @@
 |---|---|---|
 | ✅ Resolvido | Contato Mak Serviços exposto no app e nos textos da loja | 9 |
 | 🔴 Bloqueia publicação | Exigências do Google Play (exclusão de conta, política de privacidade no app) | 2 |
-| 🟠 Alto (segurança) | Webhook RevenueCat sem segredo obrigatório, sem rate limit no login, CORS aberto | 4 |
-| 🟡 Médio | Robustez do backend (migrate silencioso, UUID inválido, suporte sem persistência) | 4 |
-| 🔵 Baixo / melhoria | Documentação, iOS, mensagens de suporte sem persistência | 5 |
+| 🟠 Alto (segurança) | Sem rate limit no login, CORS aberto, sem helmet (webhook ✅ resolvido em §7.3) | 3 |
+| 🟡 Médio | Robustez do backend (migrate silencioso, suporte sem persistência; UUID ✅ em §7.3) | 3 |
+| 🔵 Baixo / melhoria | Documentação, iOS, chave do RevenueCat no eas.json | 5 |
+| ✅ Resolvido | Baixa de lavagens faturadas e ativação automática da assinatura (§7) | 2 |
 
 ---
 
@@ -127,7 +130,7 @@ telefone, dados de clientes do usuário, token de push).
 
 ## 3. 🟠 Segurança
 
-### 3.1 Webhook do RevenueCat com segredo opcional — **risco de premium gratuito**
+### 3.1 ✅ Webhook do RevenueCat com segredo opcional — **resolvido em §7.3**
 
 [backend/src/routes/subscription.js:81-86](backend/src/routes/subscription.js:81)
 
@@ -188,7 +191,7 @@ Os erros aparecerão depois como 500 genéricos para o usuário.
 **Ação:** em produção, abortar o processo (`process.exit(1)`) quando a migração falhar, para
 o EasyPanel reiniciar e o problema ficar visível.
 
-### 4.2 `app_user_id` inválido derruba o webhook com 500
+### 4.2 ✅ `app_user_id` inválido derruba o webhook com 500 — **resolvido em §7.3**
 
 [subscription.js:92-103](backend/src/routes/subscription.js:92) — `app_user_id` vai direto
 para um `WHERE id = $1` de coluna `UUID`. Um valor não-UUID gera exceção do Postgres →
@@ -267,3 +270,88 @@ está realmente definido — a proteção depende exclusivamente disso.
 5. **Itens 3.2 a 3.4**, **4.1** e **4.3** — podem entrar na primeira atualização pós-lançamento
    (3.1 e 4.2 convém resolver junto, ainda antes do envio).
 6. **Item 5.x** — backlog.
+
+---
+
+## 7. Manutenções aplicadas em 15/10/2026
+
+Duas falhas relatadas em uso real. **As duas tinham a mesma causa de fundo**, descrita em 7.1.
+
+### 7.1 🔴 Causa raiz: conta em somente-leitura porque a assinatura nunca ativava
+
+O backend bloqueia **toda operação de escrita** quando não há trial nem assinatura ativa
+([backend/src/middleware/auth.js](backend/src/middleware/auth.js), `requireActiveAccess`
+responde 402 para qualquer método que não seja GET/HEAD).
+
+A ativação do premium dependia **exclusivamente** do webhook do RevenueCat. Se o webhook
+não dispara, chega com `Authorization` diferente do esperado ou falha, o cliente **paga e
+continua sem acesso** — e então nada de escrita funciona, inclusive a baixa de lavagens.
+Era isso que fazia o botão "Marcar pago" parecer quebrado.
+
+### 7.2 Baixa de lavagens faturadas
+
+| Problema | Onde | Correção |
+|---|---|---|
+| A baixa individual engolia o erro: era `api.patch(...).then(...)` sem `.catch`, então um 402 do servidor não produzia nada na tela | [mobile/app/(app)/washes.tsx](mobile/app/(app)/washes.tsx) | Nova função `toggleCharge()` com `try/catch` e `Alert` — o motivo da recusa sempre aparece |
+| Editar uma lavagem já baixada **reabria a dívida**: o formulário reenviava `is_charged` derivado da forma de pagamento, e "Faturamento Posterior" voltava para `false` | [mobile/app/(app)/washes.tsx](mobile/app/(app)/washes.tsx) | Ao editar, a baixa é preservada; só recalcula se a forma de pagamento mudou |
+| A string `'Faturamento Posterior'` estava repetida | [mobile/src/lib/types.ts](mobile/src/lib/types.ts) | Constante exportada `FATURAMENTO_POSTERIOR` |
+| O botão não distinguia a ação pendente | [mobile/app/(app)/washes.tsx](mobile/app/(app)/washes.tsx) | Em aberto mostra **"Dar baixa"** em verde; pago mostra "Pago" em cinza |
+
+A baixa em lote (`POST /api/washes/settle`) já estava correta no backend e já exibia o erro
+— era bloqueada pelo 402 descrito em 7.1.
+
+> 🟡 **Decisão de produto em aberto:** hoje a baixa é considerada escrita e fica bloqueada
+> quando o acesso expira. Ou seja, quem deixa de assinar não consegue registrar que um
+> cliente pagou uma dívida antiga. Se a intenção for liberar a baixa mesmo em
+> somente-leitura, é trocar `requireActiveAccess` por `requireAuth` apenas nas rotas
+> `POST /washes/settle` e `PATCH /washes/:id/charge`. **Não alterei** por ser regra de
+> negócio.
+
+### 7.3 Ativação automática da assinatura
+
+Antes: compra aprovada na loja → app chamava `refresh()` → backend ainda dizia `free`
+(o webhook era o único caminho). Agora a confirmação não depende mais do webhook:
+
+| Novo | O que faz |
+|---|---|
+| [backend/src/utils/revenuecat.js](backend/src/utils/revenuecat.js) | Consulta `GET /v1/subscribers/{app_user_id}` na API do RevenueCat e lê o entitlement `premium` (ativo, data de expiração, produto). Trata 404, erro HTTP, timeout de 10s e assinatura vitalícia. |
+| `POST /api/subscription/sync` em [backend/src/routes/subscription.js](backend/src/routes/subscription.js) | Autenticado. Confere a assinatura **da própria conta** (o `app_user_id` é sempre `req.owner.id`, então ninguém herda assinatura de outro) e grava `plan` + `premium_until` na hora. |
+| [mobile/src/lib/services/subscription.ts](mobile/src/lib/services/subscription.ts) | `syncSubscription()` e `syncWithRetry()` (3 tentativas, 2s — a loja leva alguns segundos para registrar no RevenueCat). Chamado após a compra e após restaurar. |
+| [mobile/app/(app)/_layout.tsx](mobile/app/(app)/_layout.tsx) | Rede de segurança: quem não está premium tem a assinatura reconferida **a cada abertura do app**, então uma compra perdida pelo webhook se resolve sozinha. |
+| [mobile/app/premium.tsx](mobile/app/premium.tsx) | Se o pagamento foi aprovado mas o servidor não confirmou, o usuário recebe uma mensagem honesta ("Pagamento recebido, estamos confirmando") em vez de um "Bem-vindo ao Premium" falso. |
+
+Webhook endurecido no mesmo arquivo:
+
+- **Em produção, recusa (503) se `REVENUECAT_WEBHOOK_SECRET` não estiver definido** — antes, sem o segredo, qualquer um podia liberar premium (era o item 3.1 desta revisão).
+- Aceita o `Authorization` **com ou sem** o prefixo `Bearer `, que era uma causa provável de 401 silencioso.
+- Valida que `app_user_id` é UUID — antes um id anônimo do RevenueCat (`$RCAnonymousID:...`) gerava erro 500 e o RevenueCat reenviava o evento em loop (item 4.2).
+- `CANCELLATION` **não** revoga mais o acesso: no RevenueCat significa "não vai renovar", e o acesso vale até a expiração. Quem encerra é `EXPIRATION`. Também trata `REFUND`, `SUBSCRIPTION_PAUSED` e `NON_RENEWING_PURCHASE`.
+- Limite de corpo de 100kb (item 3.4) e log de cada evento com o resultado aplicado.
+
+Com isso, os itens **3.1**, **3.4 (parcial)** e **4.2** desta revisão ficam resolvidos.
+
+### 7.4 ⚠️ Variáveis de ambiente — o que falta no EasyPanel
+
+Revisão do `.env` de produção atual:
+
+| Variável | Situação | Ação |
+|---|---|---|
+| `REVENUECAT_API_KEY` | **Ausente** | 🔴 **Obrigatória.** Sem ela o `/sync` responde 503 e a ativação imediata não funciona. Pegar em RevenueCat → Project settings → API keys → **Secret key** (`sk_...`). Nunca a chave pública `goog_...`. |
+| `SUPPORT_NAME`, `SUPPORT_EMAIL` | **Ausentes** | 🔴 Sem elas o app não mostra o e-mail de contato em Ajustes (ver §1.2). |
+| `REVENUECAT_WEBHOOK_SECRET` | Definida, mas **com caracteres de risco** | 🟠 O valor atual contém `#`, `&`, `$` e `!`. Em arquivo `.env` lido por dotenv, **o `#` corta o valor** (vira `bM&q3cX8`); em shell, `$U` e `$JaaK` são expandidos e desaparecem. No EasyPanel, injetada como variável real, sobrevive — mas é uma armadilha. **Trocar por hex:** `openssl rand -hex 32`, e colar o mesmo valor no campo Authorization do webhook no RevenueCat. |
+| `REVENUECAT_ENTITLEMENT` | Ausente (padrão `premium`) | 🔵 Só definir se o entitlement no RevenueCat não se chamar `premium`. |
+| `NODE_ENV=production` | ✅ Correta | Bloqueia a ativação manual **e** passa a exigir o segredo do webhook. |
+| `DATABASE_URL` | ✅ Senha corretamente URL-encoded (`%40` = `@`) | — |
+| `JWT_SECRET`, `ADMIN_EMAILS`, `EXPO_ACCESS_TOKEN`, `FIREBASE_*` | ✅ Presentes e no formato esperado | — |
+
+**Fora do backend, confirmar no RevenueCat:**
+1. **Play Console conectado** ao RevenueCat (credencial de service account) — sem isso o RevenueCat não valida as compras e nem o webhook nem o `/sync` têm o que reportar.
+2. Entitlement chamado `premium`, com os produtos `meulavarapido_premium_monthly` e `meulavarapido_premium_yearly` num offering.
+3. Webhook apontando para `{API}/api/subscription/webhook` com o Authorization igual ao `REVENUECAT_WEBHOOK_SECRET`.
+
+### 7.5 O que não foi verificado
+
+- `mobile/node_modules` e `backend/node_modules` não estão instalados: os arquivos TS/TSX passaram por checagem de **sintaxe** (`tsc --noResolve`), não por typecheck completo.
+- `backend/src/utils/revenuecat.js` tem cobertura de teste com a API simulada (11 casos: mensal, anual, vitalícia, expirada, sem entitlement, 404, erro HTTP, sem chave) — todos passando.
+- A rota `/sync` e o webhook foram revisados e validados por sintaxe, mas **não executados** (sem dependências e sem banco). Testar em staging antes de confiar.
+- O fluxo real de compra só pode ser validado com uma **compra de teste na Play Store** (licença de teste no Play Console), em build de produção — não funciona em Expo Go.
