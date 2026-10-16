@@ -530,7 +530,7 @@ rotação do `JWT_SECRET` — recomendada em §7.4 — teria esse efeito colater
 
 1. Definir `TRIAL_PHONE_SALT`.
 2. Subir o backend (a tabela é criada no boot).
-3. Rodar uma vez, no container: `node src/scripts/backfill-trial-phones.js`
+3. Rodar **uma vez**, no terminal do container (WORKDIR `/app`): `npm run backfill-trials`
 4. Build nova do app para as mensagens novas (sem ela, quem cair no caso vê "Seu teste
    terminou" — impreciso, mas não quebra nada).
 
