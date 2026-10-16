@@ -465,15 +465,15 @@ o histórico sobrevive sem ficar órfão.
 
 1. **Ligar o GitHub Pages:** repositório → Settings → Pages → Source `Deploy from a branch`,
    branch `main`, pasta `/docs`. A política fica em
-   `https://almirseibert.github.io/meulavarapido/privacidade.html` — que é exatamente a URL
+   `https://studiomythos.com.br/meulavarapido/privacidade.html` — que é exatamente a URL
    já configurada no `eas.json`. **Enquanto o Pages não estiver ligado, esse link dá 404.**
    Se o repositório for privado, o Pages exige plano pago: nesse caso publique em outro
    lugar e ajuste a URL no `eas.json`.
 2. **Informar as URLs no Play Console:**
    - Política de privacidade (ficha da loja):
-     `https://almirseibert.github.io/meulavarapido/privacidade.html`
+     `https://studiomythos.com.br/meulavarapido/privacidade.html`
    - Solicitação de exclusão de conta (Segurança dos dados):
-     `https://almirseibert.github.io/meulavarapido/exclusao-conta.html`
+     `https://studiomythos.com.br/meulavarapido/exclusao-conta.html`
    A segunda é **exigida** pelo Google mesmo havendo exclusão dentro do app: precisa existir
    um caminho público, sem login e sem instalar o app, para quem já desinstalou.
 3. **Declarar a exclusão de conta** no Console → Segurança dos dados → "Exclusão de dados":

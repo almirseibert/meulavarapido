@@ -127,11 +127,16 @@ Primeira versão do Meu Lava Rápido! 🎉
 
 ## 7. Política de privacidade (URL obrigatória)
 
-Você **precisa** de um link público com a política de privacidade. Há um modelo pronto
-em `POLITICA_PRIVACIDADE.md` (nesta mesma pasta). Publique-o em uma URL pública
-(ex.: GitHub Pages, site da empresa, Google Sites) e cole o link no Play Console.
+Já publicada no site do Studio Mythos. Cole estes links no Play Console:
 
-Exemplo de URL: `https://<seu-usuario>.github.io/meulavarapido/privacidade`
+| Campo no Console | URL |
+|---|---|
+| Política de Privacidade (ficha da loja) | `https://studiomythos.com.br/meulavarapido/privacidade.html` |
+| Exclusão de conta (Segurança dos dados) | `https://studiomythos.com.br/meulavarapido/exclusao-conta.html` |
+
+As páginas ficam no repositório `studiomythos`, em `frontend/public/meulavarapido/`.
+O texto-fonte da política continua em `POLITICA_PRIVACIDADE.md` nesta pasta: ao alterar
+um, altere o outro.
 
 ---
 
