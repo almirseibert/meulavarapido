@@ -78,7 +78,8 @@ ser desfeita.
 Se você assina o plano Premium, cancele também a assinatura na sua conta do
 Google Play: excluir a conta no app não cancela a cobrança da loja.
 
-Caso prefira, também é possível solicitar a exclusão pelo contato do item 11.
+Caso prefira, ou se já tiver desinstalado o app, veja as formas de solicitar a
+exclusão em https://almirseibert.github.io/meulavarapido/exclusao-conta.html
 
 ## 9. Crianças
 
