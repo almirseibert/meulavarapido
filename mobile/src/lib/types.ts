@@ -10,6 +10,9 @@ export interface Owner {
   trialActive: boolean;
   trialDaysLeft: number;
   hasAccess: boolean;
+  // false quando o telefone já tinha usado o teste grátis numa conta anterior
+  // (o teste vale uma vez por telefone, mesmo depois de excluir a conta).
+  hadTrial?: boolean;
 }
 
 export interface Company {

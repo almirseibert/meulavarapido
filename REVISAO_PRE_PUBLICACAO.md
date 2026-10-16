@@ -19,6 +19,7 @@
 | 🟡 Médio | Robustez do backend (migrate silencioso; suporte ✅ em §8, UUID ✅ em §7.3) | 2 |
 | 🔵 Baixo / melhoria | Documentação, iOS, chave do RevenueCat no eas.json | 5 |
 | ✅ Resolvido | Baixa de lavagens faturadas e ativação automática da assinatura (§7) | 2 |
+| ✅ Resolvido | Teste grátis reaproveitável após excluir a conta (§10) | 1 |
 
 ---
 
@@ -480,4 +481,68 @@ o histórico sobrevive sem ficar órfão.
   operação sem volta.
 - A tela de exclusão passou por checagem de sintaxe, não foi aberta num aparelho.
 - As páginas em `docs/` não foram abertas num navegador.
+
+---
+
+## 10. Teste grátis uma vez por telefone — 16/10/2026
+
+Consequência direta da exclusão de conta (§9.1): ao apagar a linha de `owners`, o telefone
+sumia junto, e o cadastro voltava a conceder 14 dias. Dava para excluir e recadastrar
+indefinidamente. A exclusão é exigência do Google Play e não pode sair, então a trava
+precisou mudar de lugar.
+
+### 10.1 Como ficou
+
+| Onde | O quê |
+|---|---|
+| [backend/db/schema.sql](backend/db/schema.sql) | Tabela `trial_phones (phone_hash, granted_at)`. **Sem FK para `owners`**, de propósito: é o que a faz sobreviver à exclusão da conta |
+| [backend/src/routes/auth.js](backend/src/routes/auth.js) | `phoneTrialHash()` (HMAC-SHA256 dos dígitos do número). No cadastro, se o hash já existe, a conta nasce com `trial_ends_at = NULL` — **cadastro permitido, teste negado** |
+| [backend/src/routes/auth.js](backend/src/routes/auth.js) | O registro em `trial_phones` acontece **dentro da transação** do cadastro: se o cadastro falhar, o telefone não fica queimado à toa |
+| [backend/src/scripts/backfill-trial-phones.js](backend/src/scripts/backfill-trial-phones.js) | **Novo.** Registra as contas que já existem, que senão manteriam a brecha. Idempotente |
+| [mobile/src/components/AccessBanner.tsx](mobile/src/components/AccessBanner.tsx) | "Teste grátis já utilizado" em vez de "Seu teste terminou", para não parecer defeito |
+| [mobile/app/premium.tsx](mobile/app/premium.tsx) | Título e benefícios deixam de prometer período de teste para quem já usou |
+
+Decisão de produto: quem já usou o teste **consegue criar a conta**, só entra direto em
+somente-leitura com o paywall. Recusar o cadastro puniria quem excluiu a conta por motivo
+legítimo e voltou depois.
+
+### 10.2 Por que o telefone vai em hash
+
+Quem exclui a conta tem o direito de ter os dados pessoais removidos. Guardar o número em
+claro numa tabela que sobrevive à exclusão seria manter dado pessoal justamente de quem
+pediu para apagar. O HMAC-SHA256 não é reversível, mas reconhece o mesmo número quando ele
+volta — que é tudo que a regra precisa.
+
+### 10.3 ⚠️ `TRIAL_PHONE_SALT` — definir e nunca mudar
+
+Nova variável no EasyPanel. Sem ela, o `JWT_SECRET` é usado como sal.
+
+```bash
+TRIAL_PHONE_SALT=  # openssl rand -hex 32
+```
+
+**Trocar o sal depois invalida todos os hashes** e devolve o teste grátis a quem já usou.
+Como o padrão cai no `JWT_SECRET`, deixar essa variável vazia significa que uma futura
+rotação do `JWT_SECRET` — recomendada em §7.4 — teria esse efeito colateral. Defina
+`TRIAL_PHONE_SALT` explicitamente **antes** de rodar o backfill.
+
+### 10.4 Ordem no deploy
+
+1. Definir `TRIAL_PHONE_SALT`.
+2. Subir o backend (a tabela é criada no boot).
+3. Rodar uma vez, no container: `node src/scripts/backfill-trial-phones.js`
+4. Build nova do app para as mensagens novas (sem ela, quem cair no caso vê "Seu teste
+   terminou" — impreciso, mas não quebra nada).
+
+### 10.5 Verificação
+
+Teste automatizado em 14 casos, todos passando: determinismo do hash, mesma saída para
+`+55 (51) 99999-8888` e `+5551999998888`, números diferentes gerando hashes diferentes, o
+número não aparecendo no hash, e `computeAccess` com `trial_ends_at` nulo devolvendo
+somente-leitura sem `NaN`, com assinatura ainda liberando o acesso normalmente.
+
+**Não verificado:** nada rodou contra banco — nem o cadastro, nem o backfill, nem o efeito
+da exclusão sobre `trial_phones` (confirmado lendo o schema: a tabela não tem FK, então não
+cascateia). Vale testar o ciclo completo — cadastrar, excluir, recadastrar com o mesmo
+número — antes de publicar.
 

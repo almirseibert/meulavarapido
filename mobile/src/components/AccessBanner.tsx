@@ -14,6 +14,9 @@ export function AccessBanner() {
 
   const locked = !owner.hasAccess;
   const days = owner.trialDaysLeft ?? 0;
+  // Quem nunca teve teste (telefone já usou numa conta anterior) precisa de uma
+  // explicação diferente de "seu teste terminou", senão parece defeito.
+  const neverHadTrial = owner.hadTrial === false;
 
   return (
     <Pressable
@@ -27,12 +30,18 @@ export function AccessBanner() {
       </View>
       <View className="flex-1 ml-3">
         <Text className={`font-bold ${locked ? 'text-red-700' : 'text-amber-800'}`}>
-          {locked ? 'Seu teste terminou' : `Teste grátis: ${days} ${days === 1 ? 'dia restante' : 'dias restantes'}`}
+          {!locked
+            ? `Teste grátis: ${days} ${days === 1 ? 'dia restante' : 'dias restantes'}`
+            : neverHadTrial
+              ? 'Teste grátis já utilizado'
+              : 'Seu teste terminou'}
         </Text>
         <Text className={`text-xs ${locked ? 'text-red-600' : 'text-amber-700'}`}>
-          {locked
-            ? 'Assine para voltar a registrar lavagens e emitir documentos.'
-            : 'Assine para manter tudo liberado após o teste.'}
+          {!locked
+            ? 'Assine para manter tudo liberado após o teste.'
+            : neverHadTrial
+              ? 'Este telefone já usou os 14 dias. Assine para registrar lavagens e emitir documentos.'
+              : 'Assine para voltar a registrar lavagens e emitir documentos.'}
         </Text>
       </View>
       <View className={`px-3 py-1.5 rounded-full ${locked ? 'bg-red-600' : 'bg-amber-500'}`}>

@@ -307,3 +307,16 @@ CREATE TABLE IF NOT EXISTS support_messages (
 );
 CREATE INDEX IF NOT EXISTS idx_support_messages_created ON support_messages(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_support_messages_unread ON support_messages(read_at) WHERE read_at IS NULL;
+
+-- ---------- Controle do teste grátis por telefone ----------
+-- A exclusão de conta no app (exigida pelo Google Play) apaga a linha de
+-- `owners` e, com ela, o telefone — o que permitiria excluir e cadastrar de
+-- novo para ganhar outro teste de 14 dias indefinidamente. Esta tabela guarda,
+-- SEPARADA das contas, quais telefones já receberam o teste.
+-- O número nunca é gravado aqui em claro: só o HMAC-SHA256 dele, para não
+-- manter dado pessoal de quem pediu exclusão. Sem FK para owners de propósito,
+-- para não ser apagada em cascata junto com a conta.
+CREATE TABLE IF NOT EXISTS trial_phones (
+  phone_hash   TEXT PRIMARY KEY,
+  granted_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);

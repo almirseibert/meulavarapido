@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { query, withTransaction } = require('../db');
@@ -13,6 +14,23 @@ const sign = (id) =>
   jwt.sign({ sub: id }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRES_IN || '30d',
   });
+
+/**
+ * Identificador anônimo do telefone para a tabela trial_phones.
+ *
+ * HMAC-SHA256 sobre os dígitos do número. O número em claro nunca é guardado
+ * ali: quem exclui a conta tem os dados pessoais removidos, e o que sobra é
+ * apenas um hash que não dá para reverter, mas permite reconhecer que aquele
+ * telefone já usou o teste grátis.
+ *
+ * O sal sai de TRIAL_PHONE_SALT; sem ele, cai no JWT_SECRET para não quebrar
+ * um ambiente que ainda não definiu a variável. ATENÇÃO: trocar o sal torna
+ * todos os hashes anteriores irreconhecíveis e devolve o teste grátis a quem
+ * já usou — defina TRIAL_PHONE_SALT e não mude mais.
+ */
+const trialSalt = () => process.env.TRIAL_PHONE_SALT || process.env.JWT_SECRET || '';
+const phoneTrialHash = (phone) =>
+  crypto.createHmac('sha256', trialSalt()).update(phoneDigits(phone)).digest('hex');
 
 // Normaliza telefone para E.164 (heurística BR: assume DDI 55 se ausente).
 const phoneDigits = (s) => String(s || '').replace(/\D/g, '');
@@ -37,6 +55,9 @@ const publicOwner = (o) => {
     trialActive: access.trialActive,
     trialDaysLeft: access.trialDaysLeft,
     hasAccess: access.hasAccess,
+    // false quando o telefone já tinha usado o teste grátis numa conta
+    // anterior: o app mostra uma mensagem diferente do "seu teste terminou".
+    hadTrial: !!o.trial_ends_at,
   };
 };
 
@@ -89,6 +110,15 @@ router.post(
       if (dupPhone.rows.length) return fail(res, 'Já existe uma conta com este telefone.', 409);
     }
 
+    // O teste grátis é por telefone e vale UMA vez. Como a exclusão de conta
+    // apaga o número junto, o histórico fica em trial_phones (só o hash).
+    const trialHash = phone ? phoneTrialHash(phone) : null;
+    let grantTrial = true;
+    if (trialHash) {
+      const used = await query('SELECT 1 FROM trial_phones WHERE phone_hash = $1', [trialHash]);
+      grantTrial = !used.rows.length;
+    }
+
     const hash = await bcrypt.hash(password, 10);
 
     let owner;
@@ -96,7 +126,7 @@ router.post(
       owner = await withTransaction(async (c) => {
         const { rows } = await c.query(
           `INSERT INTO owners (name, email, password_hash, phone, phone_verified, firebase_uid, trial_ends_at)
-           VALUES ($1, $2, $3, $4, $5, $6, now() + interval '14 days')
+           VALUES ($1, $2, $3, $4, $5, $6, ${grantTrial ? "now() + interval '14 days'" : 'NULL'})
            RETURNING id, name, email, phone, plan, premium_until, trial_ends_at`,
           [name, email, hash, phone, phoneVerified, firebaseUid]
         );
@@ -105,6 +135,14 @@ router.post(
           'INSERT INTO company_settings (owner_id, name, email) VALUES ($1, $2, $3)',
           [o.id, name, email]
         );
+        // Registra o consumo do teste na mesma transação: se o cadastro falhar,
+        // o telefone não fica marcado à toa.
+        if (grantTrial && trialHash) {
+          await c.query(
+            'INSERT INTO trial_phones (phone_hash) VALUES ($1) ON CONFLICT DO NOTHING',
+            [trialHash]
+          );
+        }
         return o;
       });
     } catch (e) {
@@ -113,7 +151,14 @@ router.post(
       throw e;
     }
 
-    return ok(res, { token: sign(owner.id), owner: publicOwner(owner) }, 'Conta criada.', 201);
+    return ok(
+      res,
+      { token: sign(owner.id), owner: publicOwner(owner) },
+      grantTrial
+        ? 'Conta criada. Seu teste grátis de 14 dias começou.'
+        : 'Conta criada. Este telefone já usou o teste grátis, então é preciso assinar para usar o app.',
+      201
+    );
   })
 );
 

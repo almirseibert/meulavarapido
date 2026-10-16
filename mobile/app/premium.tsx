@@ -11,7 +11,7 @@ import { getPlans, purchase, restore, type PlanOption } from '@/lib/services/sub
 import { formatCurrency } from '@/lib/utils';
 
 const BENEFITS = [
-  'Continue com acesso total após os 14 dias de teste',
+  'Acesso total, sem interrupções',
   'Lavagens, recibos e orçamentos ilimitados',
   'Importar backup e migrar seus dados',
   'Backup na nuvem e suporte prioritário',
@@ -81,6 +81,9 @@ export default function PremiumScreen() {
 
   const monthly = plans.monthly?.price ?? 49.9;
   const yearly = plans.yearly?.price ?? 499.9;
+  // O teste grátis vale uma vez por telefone: quem já usou (inclusive numa
+  // conta excluída) não vê promessa de período de teste.
+  const neverHadTrial = useAuth((s) => s.owner?.hadTrial) === false;
 
   return (
     <SafeAreaView className="flex-1 bg-brand-900">
@@ -93,8 +96,14 @@ export default function PremiumScreen() {
             <Crown color="#7c2d12" size={16} />
             <Text className="text-amber-900 font-bold ml-1">PREMIUM</Text>
           </View>
-          <Text className="text-white text-2xl font-bold mt-3 text-center">Continue com acesso total</Text>
-          <Text className="text-brand-100 text-center mt-1">Mantenha sua lavagem sem limites após o período de teste.</Text>
+          <Text className="text-white text-2xl font-bold mt-3 text-center">
+            {neverHadTrial ? 'Assine para liberar o app' : 'Continue com acesso total'}
+          </Text>
+          <Text className="text-brand-100 text-center mt-1">
+            {neverHadTrial
+              ? 'Este telefone já usou o teste grátis de 14 dias.'
+              : 'Mantenha sua lavagem sem limites após o período de teste.'}
+          </Text>
         </View>
 
         <View className="bg-white/10 rounded-2xl p-4 mb-6">
