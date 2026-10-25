@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { api, unwrap } from '../api';
+import { getFirebaseAppInstanceId, getMetaAnonymousId } from './analytics';
 
 // Expo Go não tem o módulo nativo do RevenueCat -> não carregar nesse ambiente.
 const IS_EXPO_GO = Constants.executionEnvironment === 'storeClient';
@@ -64,6 +65,51 @@ export async function configurePurchases(ownerId: string) {
     // manualmente quando necessário.
     Purchases.configure({ apiKey: key, appUserID: ownerId, shouldShowInAppMessagesAutomatically: false });
     configured = true;
+    // Atribuição: sem isso o RevenueCat não consegue dizer ao Meta e ao Google
+    // Ads qual anúncio gerou a assinatura (nem a renovação dos meses seguintes).
+    linkAttribution();
+  } catch {
+    /* silencioso */
+  }
+}
+
+/**
+ * Entrega ao RevenueCat os identificadores que ligam a assinatura ao anúncio:
+ *
+ *  - `collectDeviceIdentifiers()` → GAID (Android) / IDFA-IDFV (iOS), usados
+ *    pelas integrações de Meta Ads e Google Ads. No Android exige a permissão
+ *    `com.google.android.gms.permission.AD_ID` (já declarada em app.json) e a
+ *    declaração de uso do ID de publicidade na Segurança dos Dados do Play.
+ *  - `setFirebaseAppInstanceID()` → casa o assinante com a sessão do GA4, que é
+ *    como o Google Ads importa a conversão de assinatura e renovação.
+ *  - `setFBAnonymousID()` → mesma coisa para o Meta; só existe quando o SDK do
+ *    Meta está instalado (ver play-store/MENSURACAO.md, parte 4).
+ *
+ * Tudo falha em silêncio: nenhuma dessas chamadas pode impedir uma compra.
+ */
+async function linkAttribution() {
+  try {
+    Purchases.collectDeviceIdentifiers();
+  } catch {
+    /* silencioso */
+  }
+  try {
+    const gaId = await getFirebaseAppInstanceId();
+    if (gaId) await Purchases.setFirebaseAppInstanceID(gaId);
+  } catch {
+    /* silencioso */
+  }
+  try {
+    const fbId = await getMetaAnonymousId();
+    if (fbId) await Purchases.setFBAnonymousID(fbId);
+  } catch {
+    /* silencioso */
+  }
+  try {
+    await Purchases.setAttributes({
+      platform_os: Platform.OS,
+      app_version: Constants.expoConfig?.version ?? '',
+    });
   } catch {
     /* silencioso */
   }

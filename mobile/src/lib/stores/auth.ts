@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { api, saveToken, getToken, clearToken, unwrap } from '../api';
 import { unregisterPushDevice } from '../services/notify';
+import { logLogin, logSignUp, clearAnalyticsUser } from '../services/analytics';
 import type { Owner } from '../types';
 
 interface AuthState {
@@ -45,6 +46,7 @@ export const useAuth = create<AuthState>((set, get) => ({
       );
       await saveToken(data.token);
       set({ owner: data.owner });
+      logLogin('email');
     } finally {
       set({ loading: false });
     }
@@ -62,6 +64,8 @@ export const useAuth = create<AuthState>((set, get) => ({
       );
       await saveToken(data.token);
       set({ owner: data.owner });
+      // Telefone verificado pelo Firebase conta como cadastro por telefone.
+      logSignUp(verify?.firebaseIdToken ? 'phone' : 'email');
     } finally {
       set({ loading: false });
     }
@@ -79,6 +83,7 @@ export const useAuth = create<AuthState>((set, get) => ({
   logout: async () => {
     // Desvincula o aparelho antes de limpar o token (senão a chamada vai sem auth).
     await unregisterPushDevice();
+    await clearAnalyticsUser();
     await clearToken();
     set({ owner: null });
   },

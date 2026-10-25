@@ -8,6 +8,7 @@ import { LogoMark } from '@/components/Logo';
 import { useAuth } from '@/lib/stores/auth';
 import { useApp } from '@/lib/stores/app';
 import { getPlans, purchase, restore, type PlanOption } from '@/lib/services/subscription';
+import { logPaywallView, logCheckoutStart, logSubscription } from '@/lib/services/analytics';
 import { formatCurrency } from '@/lib/utils';
 
 const BENEFITS = [
@@ -26,11 +27,24 @@ export default function PremiumScreen() {
 
   useEffect(() => { getPlans().then(setPlans).catch(() => {}); }, []);
 
+  // Mensuração: "viu o preço". A origem separa quem está no meio do teste de
+  // quem já perdeu o acesso — são conversões com valor muito diferente.
+  useEffect(() => {
+    const o = useAuth.getState().owner;
+    logPaywallView(o?.trialActive ? 'trial_ativo' : o?.hasAccess ? 'premium' : 'acesso_expirado');
+  }, []);
+
   async function subscribe() {
     setBusy(true);
     try {
+      logCheckoutStart(selected, selected === 'yearly' ? yearly : monthly);
       const ok = await purchase(selected);
       if (!ok) return;            // usuário cancelou na loja
+
+      // A loja já aprovou: registra a conversão aqui, antes do refresh. Se o
+      // backend demorar para confirmar, a venda não deixa de ser medida.
+      logSubscription(selected, selected === 'yearly' ? yearly : monthly);
+
       await refresh();
       await refreshAll();
 

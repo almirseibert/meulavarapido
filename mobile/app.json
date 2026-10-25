@@ -18,7 +18,10 @@
         "backgroundColor": "#0B4F6C"
       },
       "package": "com.studiomythos.meulavarapido",
-      "googleServicesFile": "./google-services.json"
+      "googleServicesFile": "./google-services.json",
+      "permissions": [
+        "com.google.android.gms.permission.AD_ID"
+      ]
     },
     "web": {
       "bundler": "metro",

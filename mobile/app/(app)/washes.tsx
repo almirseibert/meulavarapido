@@ -7,6 +7,7 @@ import { Button, Input, Card, Pill, Empty } from '@/components/ui';
 import { api, unwrap, ApiError } from '@/lib/api';
 import { useApp } from '@/lib/stores/app';
 import { generateAndShare } from '@/lib/services/receipt';
+import { logWashCreated } from '@/lib/services/analytics';
 import { formatCurrency, formatDate, formatTime, parseDateTime, toDateInput } from '@/lib/utils';
 import { ClientVehiclePicker, EMPTY_SELECTION, type PickerSelection } from '@/components/ClientPicker';
 import { PAYMENT_TYPES, FATURAMENTO_POSTERIOR, type Wash, type Service } from '@/lib/types';
@@ -352,6 +353,8 @@ function WashFormModal({
         await api.put(`/washes/${wash.id}`, body);
       } else {
         await api.post('/washes', body);
+        // Mensuração de uso/ativação (a 1ª lavagem é o melhor sinal de retenção).
+        logWashCreated({ price: total, pickup });
       }
       onSaved();
     } catch (e) {

@@ -8,6 +8,7 @@ import { useAuth } from '@/lib/stores/auth';
 import { useApp } from '@/lib/stores/app';
 import { configurePurchases, syncSubscription } from '@/lib/services/subscription';
 import { registerPushDevice } from '@/lib/services/notify';
+import { setAnalyticsUser, logTrialStartOnce } from '@/lib/services/analytics';
 
 export default function AppLayout() {
   const owner = useAuth((s) => s.owner);
@@ -22,6 +23,11 @@ export default function AppLayout() {
     configurePurchases(owner.id);
     // Registra o aparelho para receber novidades/promoções (falha em silêncio).
     registerPushDevice();
+
+    // Mensuração: identifica a conta no GA4 e reporta o início do teste grátis
+    // (uma vez só por conta). Falha em silêncio.
+    setAnalyticsUser(owner);
+    logTrialStartOnce(owner);
 
     // Rede de segurança da assinatura: se o webhook do RevenueCat falhou ou
     // atrasou, confere a compra na abertura e libera o premium. Só vale a pena
