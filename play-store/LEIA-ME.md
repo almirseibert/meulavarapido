@@ -6,6 +6,8 @@ Tudo o que você precisa para subir o app na Google Play está nesta pasta.
 1. **[MANUAL_PUBLICACAO.md](MANUAL_PUBLICACAO.md)** — passo a passo completo, do build à publicação.
 2. **[TEXTOS_LOJA.md](TEXTOS_LOJA.md)** — todos os textos prontos para copiar e colar.
 3. **[POLITICA_PRIVACIDADE.md](POLITICA_PRIVACIDADE.md)** — modelo para publicar em uma URL.
+4. **[PLANO_DIVULGACAO.md](PLANO_DIVULGACAO.md)** — plano de marketing: Meta Ads, Instagram, ASO, parcerias e cronograma de 90 dias.
+5. **[MENSURACAO.md](MENSURACAO.md)** — eventos do funil no app e configuração de GA4, Google Ads, Meta e RevenueCat.
 
 ## Imagens prontas para enviar (`assets/`)
 - `icon-512.png` — ícone da loja (512×512)
